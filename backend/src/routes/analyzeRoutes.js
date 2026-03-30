@@ -7,17 +7,17 @@ const { uploadFiles } = require('../middlewares/upload');
 const express = require('express');
 const router = express.Router();
 
-router.use(protect);
-
 router.post(
   '/',
+  protect,
   uploadFiles,
   validateRequest(analyzeSchema),
   analyzeController.analyze
 );
 
-router.get('/my-analyses', analyzeController.getMyAnalyses);
-router.get('/:id', analyzeController.getAnalysis);
-router.post('/pre-check', validateRequest(preCheckSchema), analyzeController.preCheck);
+router.post('/pre-check', protect, validateRequest(preCheckSchema), analyzeController.preCheck);
+
+router.get('/my-analyses', protect, analyzeController.getMyAnalyses);
+router.get('/:id', protect, analyzeController.getAnalysis);
 
 module.exports = router;

@@ -1,100 +1,45 @@
 const EMERGENCY_KEYWORDS = {
   chest_pain: {
-    keywords: ['chest pain', 'chest tightness', 'chest pressure', 'heart pain', 'cardiac pain'],
+    keywords: ['chest pain', 'chest tightness', 'chest pressure', 'heart pain', 'cardiac pain', 'heart attack', 'heart ache'],
     severity: 'critical',
     message: 'Possible cardiac emergency',
   },
   breathing_difficulty: {
     keywords: [
-      'difficulty breathing',
-      'shortness of breath',
-      'breathing trouble',
-      'cant breathe',
-      'cannot breathe',
-      'breathlessness',
-      'dyspnea',
-      'wheezing',
-      'gasping for air',
+      'breathing', 'shortness of breath', 'cant breathe', 'cannot breathe', 
+      'trouble breathing', 'breathlessness', 'dyspnea', 'wheezing', 
+      'gasping for air', 'breath', 'asthma', 'choke', 'suffocate'
     ],
     severity: 'critical',
     message: 'Respiratory distress detected',
   },
   unconscious: {
-    keywords: [
-      'unconscious',
-      'unresponsive',
-      'passed out',
-      'fainted',
-      'lost consciousness',
-      'blackout',
-      'passed out',
-    ],
+    keywords: ['unconscious', 'unresponsive', 'passed out', 'fainted', 'lost consciousness', 'blackout', 'passed out'],
     severity: 'critical',
     message: 'Unconsciousness reported',
   },
   seizure: {
-    keywords: [
-      'seizure',
-      'convulsion',
-      'fitting',
-      'epileptic fit',
-      'shake',
-      'twitching',
-      'uncontrolled movement',
-    ],
+    keywords: ['seizure', 'convulsion', 'fitting', 'epileptic', 'shake', 'twitching', 'uncontrolled movement', 'epilepsy'],
     severity: 'critical',
     message: 'Seizure activity reported',
   },
   severe_bleeding: {
-    keywords: [
-      'severe bleeding',
-      'heavy bleeding',
-      'uncontrolled bleeding',
-      'bleeding out',
-      'hemorrhage',
-      'blood loss',
-      'arterial bleed',
-    ],
+    keywords: ['severe bleeding', 'heavy bleeding', 'uncontrolled bleeding', 'bleeding out', 'hemorrhage', 'blood loss', 'arterial bleed'],
     severity: 'critical',
     message: 'Severe bleeding detected',
   },
   high_fever: {
-    keywords: [
-      'high fever',
-      'very high temperature',
-      'fever over',
-      'febrile',
-      'temperature above',
-      '104 fever',
-      '105 fever',
-      'hot to touch',
-    ],
+    keywords: ['high fever', 'very high temperature', 'fever over', 'febrile', 'temperature above', '104', '105', 'hot to touch', 'fever 103', 'fever 102', 'burning up'],
     severity: 'high',
     message: 'High fever detected',
   },
   stroke: {
-    keywords: [
-      'stroke',
-      'slurred speech',
-      'face drooping',
-      'arm weakness',
-      'numbness',
-      'paralysis',
-      'facial droop',
-      'sudden confusion',
-    ],
+    keywords: ['stroke', 'slurred speech', 'face drooping', 'arm weakness', 'numbness', 'paralysis', 'facial droop', 'sudden confusion', 'numb', 'weakness'],
     severity: 'critical',
     message: 'Possible stroke symptoms',
   },
   poisoning: {
-    keywords: [
-      'poisoning',
-      'toxic ingestion',
-      'overdose',
-      'drug overdose',
-      'swallowed poison',
-      'ingested toxic',
-    ],
+    keywords: ['poisoning', 'toxic', 'overdose', 'drug overdose', 'swallowed poison', 'ingested toxic', 'intoxicated', 'intoxication'],
     severity: 'critical',
     message: 'Possible poisoning/overdose',
   },
@@ -135,16 +80,29 @@ const EMERGENCY_KEYWORDS = {
     message: 'Possible bone fracture',
   },
   head_injury: {
-    keywords: [
-      'head injury',
-      'hit head',
-      'head trauma',
-      'concussion',
-      'skull injury',
-      'blunt head trauma',
-    ],
+    keywords: ['head injury', 'hit head', 'head trauma', 'concussion', 'skull injury', 'blunt head trauma', 'hit my head', 'bump on head'],
     severity: 'high',
     message: 'Head injury detected',
+  },
+  severe_pain: {
+    keywords: ['severe pain', 'excruciating pain', 'unbearable pain', 'agonizing pain', 'worst pain', 'cant move', 'immobile'],
+    severity: 'high',
+    message: 'Severe pain reported',
+  },
+  allergic_reaction: {
+    keywords: ['allergic reaction', 'anaphylaxis', 'throat swelling', 'anaphylactic', 'lips swelling', 'face swelling', 'hives', 'allergy'],
+    severity: 'critical',
+    message: 'Severe allergic reaction',
+  },
+  diabetic_emergency: {
+    keywords: ['diabetic', 'low blood sugar', 'high blood sugar', 'diabetes', 'insulin', 'hypoglycemia', 'hyperglycemia'],
+    severity: 'high',
+    message: 'Diabetic emergency possible',
+  },
+  dehydration: {
+    keywords: ['dehydration', 'severely dehydrated', 'cant keep fluids down', 'vomiting', 'diarrhea', 'stomach flu'],
+    severity: 'moderate',
+    message: 'Possible dehydration',
   },
 };
 
@@ -160,12 +118,15 @@ function normalizeText(text) {
 }
 
 function checkForKeywords(inputText) {
-  const normalizedText = normalizeText(inputText);
+  const normalizedText = ' ' + normalizeText(inputText) + ' ';
   const detectedFlags = [];
 
   for (const [key, config] of Object.entries(EMERGENCY_KEYWORDS)) {
     for (const keyword of config.keywords) {
-      if (normalizedText.includes(keyword.toLowerCase())) {
+      const normalizedKeyword = keyword.toLowerCase();
+      if (normalizedText.includes(' ' + normalizedKeyword + ' ') || 
+          normalizedText.includes(normalizedKeyword + ' ') ||
+          normalizedText.includes(' ' + normalizedKeyword)) {
         detectedFlags.push({
           type: key,
           keyword: keyword,
@@ -181,21 +142,22 @@ function checkForKeywords(inputText) {
 }
 
 function determineSeverity(flags) {
-  if (!flags.length) return 'none';
+  if (!flags || !flags.length) return 'none';
 
   const severities = flags.map((f) => f.severity);
 
   if (severities.includes('critical')) return 'critical';
   if (severities.includes('high')) return 'high';
   if (severities.includes('moderate')) return 'moderate';
-  return 'low';
+  if (severities.includes('low')) return 'low';
+  return 'none';
 }
 
 function getRecommendedAction(severity) {
   const actions = {
     critical: {
       action: 'EMERGENCY',
-      instruction: 'Call emergency services immediately (911/112)',
+      instruction: 'Call emergency services (112) or visit a doctor immediately',
       urgency: 'immediate',
     },
     high: {

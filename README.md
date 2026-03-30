@@ -6,14 +6,14 @@ AI-Powered Healthcare Analysis Platform built with MERN stack.
 
 - **Backend**: Node.js, Express, MongoDB, Mongoose
 - **Frontend**: React, Tailwind CSS, Vite
-- **AI**: OpenRouter API (Mistral-7B)
+- **AI**: Google Gemini API
 - **Features**: JWT Auth, Triage Engine, PDF Reports
 
 ## Prerequisites
 
 - Node.js 18+
 - MongoDB 6+
-- npm or yarn
+- Gemini API Key (from Google AI Studio)
 
 ## Quick Start
 
@@ -22,7 +22,8 @@ AI-Powered Healthcare Analysis Platform built with MERN stack.
 ```bash
 git clone <repository-url>
 cd ArogyaAI
-cp .env.example backend/.env
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
 ```
 
 ### 2. Configure Environment Variables
@@ -31,9 +32,11 @@ Edit `backend/.env`:
 
 ```env
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/arogyaai
-JWT_SECRET=your-secure-secret-key
-OPENROUTER_API_KEY=your-openrouter-api-key
+NODE_ENV=development
+MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/arogyaai
+JWT_SECRET=your-secure-secret-key-min-32-chars
+JWT_EXPIRES_IN=7d
+GEMINI_API_KEY=your-gemini-api-key
 CLIENT_URL=http://localhost:5173
 ```
 
@@ -65,28 +68,32 @@ npm run dev
 
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5000
-- Health Check: http://localhost:5000/api/health
 
-## Environment Variables
+## Production Deployment
 
-### Backend (.env)
+### Build Frontend
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| PORT | Server port (default: 5000) | No |
-| NODE_ENV | Environment (development/production) | No |
-| MONGODB_URI | MongoDB connection string | Yes |
-| JWT_SECRET | JWT signing secret (min 32 chars) | Yes |
-| JWT_EXPIRES_IN | Token expiry (default: 7d) | No |
-| OPENROUTER_API_KEY | OpenRouter API key | Yes |
-| CLIENT_URL | Frontend URL for CORS | No |
-| ALLOWED_ORIGINS | Comma-separated allowed origins | No |
-
-### Frontend (.env)
-
-```env
-VITE_API_URL=http://localhost:5000/api
+```bash
+cd frontend
+npm run build
 ```
+
+The built files will be in `frontend/dist/`.
+
+### Environment Variables (Production)
+
+Set these environment variables on your deployment platform:
+
+**Backend:**
+- `NODE_ENV=production`
+- `PORT=5000`
+- `MONGODB_URI` - Your MongoDB Atlas connection string
+- `JWT_SECRET` - Generate a strong random string
+- `GEMINI_API_KEY` - From Google AI Studio
+- `CLIENT_URL` - Your deployed frontend URL
+
+**Frontend:**
+- `VITE_API_URL` - Your deployed backend URL
 
 ## API Endpoints
 
@@ -109,15 +116,6 @@ VITE_API_URL=http://localhost:5000/api
 | GET | `/api/analyze/my-analyses` | List user's analyses |
 | POST | `/api/analyze/pre-check` | Quick triage check |
 
-### Reports
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/reports` | List reports (admin) |
-| GET | `/api/reports/:id` | Get report by ID |
-| POST | `/api/reports` | Create report |
-| PATCH | `/api/reports/:id` | Update report |
-| DELETE | `/api/reports/:id` | Delete report |
-
 ### Health
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -126,16 +124,27 @@ VITE_API_URL=http://localhost:5000/api
 ## Features
 
 - [x] User authentication (JWT)
-- [x] Symptom analysis with AI
+- [x] Symptom analysis with AI (Gemini)
+- [x] Image analysis support
 - [x] Emergency triage detection
 - [x] File uploads (images, prescriptions)
 - [x] PDF report generation
 - [x] Analysis history
-- [x] Risk level assessment
+- [x] Risk level assessment (low/moderate/high/critical)
 - [x] Rate limiting
 - [x] Input sanitization
 - [x] CORS protection
 - [x] Helmet security headers
+
+## AI Response Format
+
+The AI returns structured JSON with:
+- `risk_level`: low | moderate | high | critical
+- `summary`: Brief analysis
+- `conditions`: Possible conditions
+- `recommendations`: Action items
+- `red_flags`: Warning signs
+- `confidence`: 0.0 - 1.0
 
 ## Project Structure
 
@@ -144,25 +153,27 @@ ArogyaAI/
 ├── backend/
 │   ├── src/
 │   │   ├── config/        # Configuration files
-│   │   ├── controllers/    # Route handlers
+│   │   ├── controllers/   # Route handlers
 │   │   ├── models/        # Mongoose schemas
 │   │   ├── routes/        # API routes
 │   │   ├── middlewares/   # Express middleware
-│   │   ├── services/      # Business logic
+│   │   ├── services/      # Business logic (AI, Triage)
 │   │   ├── utils/         # Utilities
 │   │   └── validators/     # Joi schemas
+│   ├── .env
+│   ├── .env.example
 │   └── server.js
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API client
 │   │   ├── components/    # React components
-│   │   ├── context/       # React context
+│   │   ├── context/       # Auth context
 │   │   ├── hooks/         # Custom hooks
 │   │   ├── pages/         # Page components
-│   │   └── utils/         # Utilities
+│   │   └── utils/         # PDF generator
+│   ├── .env
 │   └── vite.config.js
-├── .env.example
-├── package.json
+├── .gitignore
 └── README.md
 ```
 
@@ -173,10 +184,10 @@ ArogyaAI/
 - Input validation with Joi
 - XSS protection
 - CORS configuration
-- Password hashing with bcrypt (12 rounds)
+- Password hashing with bcrypt (10 rounds)
 - JWT token authentication
+- Protected API routes
 
 ## License
 
 MIT
-deR3TFyaNN1Bz5ab

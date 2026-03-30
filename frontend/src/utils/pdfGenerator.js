@@ -129,7 +129,16 @@ export function generateAnalysisPDF(analysis) {
 
     if (analysis.ai.risk_level) {
       doc.setTextColor(...riskColors[analysis.ai.risk_level] || [0, 0, 0])
-      addText(`AI Risk Level: ${analysis.ai.risk_level.toUpperCase()}`, 11, true)
+      addText(`Risk Level: ${(analysis.ai.risk_level || 'N/A').toUpperCase()}`, 11, true)
+      doc.setTextColor(0, 0, 0)
+      addLine()
+    }
+
+    if (typeof analysis.ai.confidence === 'number') {
+      const confPercent = Math.round(analysis.ai.confidence * 100)
+      const confColor = confPercent >= 80 ? [34, 197, 94] : confPercent >= 50 ? [234, 179, 8] : [239, 68, 68]
+      doc.setTextColor(...confColor)
+      addText(`Confidence: ${confPercent}%`, 10, true)
       doc.setTextColor(0, 0, 0)
       addLine()
     }

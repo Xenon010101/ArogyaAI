@@ -14,21 +14,10 @@ const analysisSchema = new mongoose.Schema(
       maxlength: 5000,
     },
     triageResult: {
-      isEmergency: { type: Boolean, default: false },
-      severity: { type: String, enum: ['none', 'low', 'moderate', 'high', 'critical'] },
-      flags: [
-        {
-          type: String,
-          keyword: String,
-          severity: String,
-          message: String,
-        },
-      ],
-      recommendation: {
-        action: String,
-        instruction: String,
-        urgency: String,
-      },
+      isEmergency: Boolean,
+      severity: String,
+      flags: [mongoose.Schema.Types.Mixed],
+      recommendation: mongoose.Schema.Types.Mixed,
     },
     aiAnalysis: {
       risk_level: String,
@@ -45,10 +34,13 @@ const analysisSchema = new mongoose.Schema(
     },
     files: [
       {
+        originalName: String,
         fileName: String,
         fileUrl: String,
         fileType: String,
+        mimetype: String,
         fileSize: Number,
+        category: String,
       },
     ],
     userContext: {

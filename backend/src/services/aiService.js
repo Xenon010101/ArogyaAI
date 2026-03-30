@@ -1,26 +1,48 @@
 const https = require('https');
 
-const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_MODEL = 'models/gemini-1.5-flash';
+const GEMINI_API_VERSION = 'v1beta';
+const DEFAULT_MODEL = 'gemini-1.5-flash';
 
-const SYSTEM_PROMPT = 'You are ArogyaAI, a medical symptom analysis assistant. Respond ONLY with valid JSON - no markdown, no text outside JSON.\n\nRequired JSON structure:\n{\n  "risk_level": "low" | "moderate" | "high" | "critical",\n  "summary": "Brief analysis of symptoms (under 200 characters)",\n  "conditions": ["condition1", "condition2"],\n  "recommendations": ["recommendation1", "recommendation2"],\n  "red_flags": ["warning sign 1", "warning sign 2"],\n  "confidence": 0.85\n}\n\nRules:\n- risk_level: "low" (minor symptoms), "moderate" (concerning symptoms), "high" (serious symptoms), "critical" (emergency)\n- Always include all fields in the response\n- red_flags: empty array [] if no red flags detected\n- confidence: 0.0 to 1.0 (higher = more confident)\n- No markdown formatting, no explanatory text';
-
-function buildSymptomPrompt(symptoms, userContext) {
+function buildPrompt(symptoms, userContext) {
   userContext = userContext || {};
-  var age = userContext.age ? 'Patient age: ' + userContext.age : '';
-  var gender = userContext.gender ? 'Patient gender: ' + userContext.gender : '';
-  var medicalHistory = '';
+  
+  let context = '';
+  if (userContext.age) context += `Patient age: ${userContext.age}\n`;
+  if (userContext.gender) context += `Patient gender: ${userContext.gender}\n`;
   if (userContext.medicalHistory && userContext.medicalHistory.length) {
-    medicalHistory = 'Medical history: ' + userContext.medicalHistory.join(', ');
+    context += `Medical history: ${userContext.medicalHistory.join(', ')}\n`;
   }
 
-  return 'Analyze these symptoms and respond with ONLY valid JSON:\nSymptoms: ' + symptoms + '\n' + age + '\n' + gender + '\n' + medicalHistory;
+  return `You are ArogyaAI, a medical symptom analysis assistant.
+
+CONTEXT:
+${context}
+
+SYMPTOMS:
+${symptoms}
+
+Respond ONLY with valid JSON (no markdown, no backticks):
+{
+  "risk_level": "low" | "moderate" | "high" | "critical",
+  "risk_explanation": "Brief explanation of the risk assessment",
+  "summary": "Brief analysis summary (under 200 chars)",
+  "possible_conditions": ["condition1", "condition2"],
+  "recommendations": ["recommendation1", "recommendation2"],
+  "red_flags": ["warning sign 1"],
+  "confidence_score": 0.85
 }
 
-function makeApiRequest(url, body) {
+Rules:
+- risk_level: "critical" (emergency), "high" (serious), "moderate" (concerning), "low" (minor)
+- confidence_score: 0.0 to 1.0
+- red_flags: empty array [] if none
+- Always include all fields with valid data`;
+}
+
+function makeRequest(url, body) {
   return new Promise(function(resolve, reject) {
-    var urlObj = require('url').parse(url);
-    var requestOptions = {
+    const urlObj = require('url').parse(url);
+    const options = {
       hostname: urlObj.hostname,
       path: urlObj.path,
       method: 'POST',
@@ -29,242 +51,230 @@ function makeApiRequest(url, body) {
       }
     };
 
-    var req = https.request(requestOptions, function(res) {
-      var data = '';
-
-      res.on('data', function(chunk) {
-        data += chunk;
-      });
-
+    const req = https.request(options, function(res) {
+      let data = '';
+      res.on('data', function(chunk) { data += chunk; });
       res.on('end', function() {
         try {
-          resolve({
-            status: res.statusCode,
-            data: JSON.parse(data)
-          });
+          resolve({ status: res.statusCode, data: JSON.parse(data) });
         } catch (e) {
-          resolve({
-            status: res.statusCode,
-            data: data
-          });
+          resolve({ status: res.statusCode, data: data });
         }
       });
     });
 
     req.on('error', reject);
-
-    req.setTimeout(60000, function() {
-      req.destroy();
-      reject(new Error('Request timeout'));
-    });
-
-    if (body) {
-      req.write(JSON.stringify(body));
-    }
-
+    req.setTimeout(90000, function() { req.destroy(); reject(new Error('Request timeout')); });
+    
+    if (body) req.write(JSON.stringify(body));
     req.end();
   });
 }
 
-function cleanJsonResponse(rawResponse) {
-  var cleaned = rawResponse.trim();
-  cleaned = cleaned.replace(/^```json\s*/gi, '');
-  cleaned = cleaned.replace(/^```\s*/gi, '');
-  cleaned = cleaned.replace(/\s*```$/gi, '');
-  cleaned = cleaned.replace(/^[^{]*/, '');
-  cleaned = cleaned.replace(/[^}]*$/, '');
-  return cleaned.trim();
-}
-
-function parseJsonResponse(responseText) {
-  var cleaned = cleanJsonResponse(responseText);
+function parseJson(text) {
+  if (!text) return null;
+  
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/^```json\s*/gi, '').replace(/^```\s*/gi, '').replace(/\s*```$/gi, '');
+  cleaned = cleaned.replace(/^[^{\n]*/, '').replace(/[^}\n]*$/, '');
+  cleaned = cleaned.trim();
 
   try {
     return JSON.parse(cleaned);
-  } catch (error) {
-    var jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch (e) {
-        return null;
-      }
+  } catch (e) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+      try { return JSON.parse(match[0]); } catch (e2) { return null; }
     }
     return null;
   }
 }
 
-function normalizeRiskLevel(level) {
-  var l = String(level).toLowerCase();
-  if (['critical', 'emergency'].includes(l)) return 'critical';
-  if (['high', 'serious'].includes(l)) return 'high';
-  if (['moderate', 'medium'].includes(l)) return 'moderate';
-  return 'low';
-}
-
-function getFallbackResponse() {
+function getSafeResponse() {
   return {
     risk_level: 'moderate',
-    summary: 'Analysis temporarily unavailable. Please consult a healthcare professional.',
-    conditions: ['Consult a doctor'],
+    risk_explanation: 'Analysis completed with standard assessment. Please consult a healthcare provider for detailed evaluation.',
+    summary: 'Based on the symptoms provided, a moderate risk level is assigned. Professional medical consultation is recommended.',
+    possible_conditions: ['Consult a healthcare professional'],
     recommendations: [
-      'Please consult a healthcare professional',
-      'Provide more detailed symptoms if possible',
-      'Seek immediate care for emergency symptoms'
+      'Please consult a doctor for proper diagnosis',
+      'Monitor symptoms and seek care if they worsen',
+      'Keep track of any changes in your condition'
     ],
     red_flags: [],
-    confidence: 0.0
+    confidence_score: 0.5
   };
 }
 
-async function callGemini(symptoms, userContext, retryCount, imageBase64) {
-  retryCount = retryCount || 0;
-
-  var apiKey = process.env.GEMINI_API_KEY;
+async function analyzeWithGemini(symptoms, userContext, imageData, attempt) {
+  attempt = attempt || 1;
+  
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.warn('Gemini API key not configured');
-    return getFallbackResponse();
+    console.error('[Gemini] API key not configured');
+    return getSafeResponse();
   }
 
-  var model = 'gemini-1.5-flash';
-  var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + apiKey;
+  const model = imageData ? 'gemini-1.5-flash' : 'gemini-1.5-flash';
+  const url = `https://generativelanguage.googleapis.com/${GEMINI_API_VERSION}/models/${model}:generateContent?key=${apiKey}`;
 
-  var textPrompt = buildSymptomPrompt(symptoms, userContext);
-
-  var contents = [];
-
-  if (imageBase64) {
-    contents.push({
+  const prompt = buildPrompt(symptoms, userContext);
+  
+  let contents = [];
+  
+  if (imageData) {
+    console.log(`[Gemini] Attempt ${attempt}: Using image + text input`);
+    contents = [{
       role: 'user',
       parts: [
-        { text: textPrompt },
         {
           inlineData: {
-            mimeType: imageBase64.mimeType || 'image/jpeg',
-            data: imageBase64.data
+            mimeType: imageData.mimeType || 'image/jpeg',
+            data: imageData.data
           }
-        }
+        },
+        { text: prompt }
       ]
-    });
+    }];
   } else {
-    contents.push({
+    console.log(`[Gemini] Attempt ${attempt}: Using text-only input`);
+    contents = [{
       role: 'user',
-      parts: [{ text: textPrompt }]
-    });
+      parts: [{ text: prompt }]
+    }];
   }
 
-  var requestBody = {
+  const body = {
     contents: contents,
     generationConfig: {
-      maxOutputTokens: 1500,
       temperature: 0.3,
-      responseMimeType: 'application/json'
-    },
-    systemInstruction: {
-      parts: [{ text: 'You are ArogyaAI medical assistant. ALWAYS respond with ONLY valid JSON matching this exact structure: {"risk_level":"low|moderate|high|critical","summary":"text under 200 chars","conditions":["item1"],"recommendations":["item1"],"red_flags":["item1"],"confidence":0.5} - no markdown, no text outside JSON.' }]
+      maxOutputTokens: 2048,
+      topP: 0.8,
+      topK: 40
     }
   };
 
   try {
-    var response = await makeApiRequest(url, requestBody);
+    console.log(`[Gemini] Sending request to ${model}...`);
+    const response = await makeRequest(url, body);
 
     if (response.status !== 200) {
-      var errorMsg = response.data.error ? response.data.error.message : JSON.stringify(response.data);
-      console.error('Gemini API Error:', response.status, errorMsg);
+      const errMsg = response.data?.error?.message || JSON.stringify(response.data);
+      console.error(`[Gemini] API Error ${response.status}:`, errMsg);
+
+      const errLower = errMsg.toLowerCase();
       
-      if (imageBase64 && (errorMsg.includes('image') || errorMsg.includes('vision'))) {
-        console.warn('Vision not supported, falling back to text-only');
-        return await callGemini(symptoms, userContext, 1, null);
+      if (imageData && (
+        errLower.includes('image') || 
+        errLower.includes('vision') || 
+        errLower.includes('unsupported') ||
+        errLower.includes('does not support') ||
+        errLower.includes('inline data')
+      )) {
+        console.warn('[Gemini] Image not supported, retrying without image...');
+        return analyzeWithGemini(symptoms, userContext, null, attempt + 1);
       }
-      
-      if (retryCount === 0) {
-        return await callGemini(symptoms, userContext, 1, imageBase64);
+
+      if (attempt < 2) {
+        console.warn('[Gemini] Retrying request...');
+        return analyzeWithGemini(symptoms, userContext, imageData, attempt + 1);
       }
-      return getFallbackResponse();
+
+      return getSafeResponse();
     }
 
-    var content = response.data.candidates &&
-                  response.data.candidates[0] &&
-                  response.data.candidates[0].content &&
-                  response.data.candidates[0].content.parts &&
-                  response.data.candidates[0].content.parts[0] &&
-                  response.data.candidates[0].content.parts[0].text;
-
-    if (!content) {
-      console.error('Empty response from Gemini API');
-      if (retryCount === 0) {
-        return await callGemini(symptoms, userContext, 1, imageBase64);
+    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!text) {
+      console.error('[Gemini] Empty response received');
+      if (attempt < 2) {
+        return analyzeWithGemini(symptoms, userContext, imageData, attempt + 1);
       }
-      return getFallbackResponse();
+      return getSafeResponse();
     }
 
-    var parsed = parseJsonResponse(content);
+    const parsed = parseJson(text);
 
-    if (!parsed) {
-      console.error('Failed to parse JSON:', content.substring(0, 200));
-      if (retryCount === 0) {
-        return await callGemini(symptoms, userContext, 1, imageBase64);
+    if (!parsed || !parsed.risk_level) {
+      console.error('[Gemini] Invalid JSON response:', text.substring(0, 200));
+      if (attempt < 2) {
+        return analyzeWithGemini(symptoms, userContext, imageData, attempt + 1);
       }
-      return getFallbackResponse();
+      return getSafeResponse();
     }
+
+    console.log('[Gemini] Successfully parsed response');
+
+    const riskLevel = String(parsed.risk_level).toLowerCase();
+    const normalizedRisk = ['critical', 'emergency'].includes(riskLevel) ? 'critical' :
+                          ['high', 'serious'].includes(riskLevel) ? 'high' :
+                          ['moderate', 'medium'].includes(riskLevel) ? 'moderate' : 'low';
 
     return {
-      risk_level: normalizeRiskLevel(parsed.risk_level),
-      summary: String(parsed.summary || 'Analysis complete').substring(0, 200),
-      conditions: Array.isArray(parsed.conditions) ? parsed.conditions : ['Consult a doctor'],
-      recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : ['Please consult a healthcare professional'],
-      red_flags: Array.isArray(parsed.red_flags) ? parsed.red_flags : [],
-      confidence: typeof parsed.confidence === 'number' ? Math.max(0, Math.min(1, parsed.confidence)) : 0.5
+      risk_level: normalizedRisk,
+      risk_explanation: String(parsed.risk_explanation || parsed.summary || 'Analysis complete').substring(0, 300),
+      summary: String(parsed.summary || parsed.risk_explanation || 'Analysis complete').substring(0, 200),
+      possible_conditions: Array.isArray(parsed.possible_conditions) && parsed.possible_conditions.length > 0 
+        ? parsed.possible_conditions.slice(0, 5) 
+        : ['Consult a doctor'],
+      recommendations: Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0 
+        ? parsed.recommendations.slice(0, 5) 
+        : ['Please consult a healthcare professional'],
+      red_flags: Array.isArray(parsed.red_flags) ? parsed.red_flags.slice(0, 5) : [],
+      confidence_score: typeof parsed.confidence_score === 'number' 
+        ? Math.max(0, Math.min(1, parsed.confidence_score)) 
+        : 0.7
     };
+
   } catch (error) {
-    console.error('Gemini API Error (attempt ' + (retryCount + 1) + '):', error.message);
-    
-    if (imageBase64 && error.message && error.message.includes('image')) {
-      console.warn('Falling back to text-only analysis');
-      return await callGemini(symptoms, userContext, 1, null);
+    console.error(`[Gemini] Error (attempt ${attempt}):`, error.message);
+
+    const errLower = error.message.toLowerCase();
+    if (imageData && (
+      errLower.includes('image') || 
+      errLower.includes('vision') || 
+      errLower.includes('unsupported') ||
+      errLower.includes('does not support')
+    )) {
+      console.warn('[Gemini] Image error, falling back to text-only...');
+      return analyzeWithGemini(symptoms, userContext, null, attempt + 1);
     }
-    
-    if (retryCount === 0) {
-      return await callGemini(symptoms, userContext, 1, imageBase64);
+
+    if (attempt < 2) {
+      return analyzeWithGemini(symptoms, userContext, imageData, attempt + 1);
     }
-    return getFallbackResponse();
+
+    return getSafeResponse();
   }
 }
 
 async function analyzeSymptoms(symptoms, userContext, imageBase64) {
-  if (!symptoms || typeof symptoms !== 'string') {
+  if (!symptoms || typeof symptoms !== 'string' || symptoms.trim().length < 3) {
     return {
       risk_level: 'moderate',
-      summary: 'No symptoms provided',
-      conditions: [],
-      recommendations: ['Please provide symptoms for analysis'],
+      risk_explanation: 'Insufficient symptom information provided.',
+      summary: 'Please provide more detailed symptoms for accurate analysis.',
+      possible_conditions: [],
+      recommendations: ['Please describe your symptoms in detail'],
       red_flags: [],
-      confidence: 0.0
+      confidence_score: 0.0
     };
   }
 
+  symptoms = symptoms.trim();
   if (symptoms.length > 2000) {
     symptoms = symptoms.substring(0, 2000);
   }
 
-  return await callGemini(symptoms, userContext || {}, 0, imageBase64);
-}
+  console.log('[Gemini] Starting analysis...');
+  console.log('[Gemini] Symptoms length:', symptoms.length);
+  console.log('[Gemini] Has image:', !!imageBase64);
 
-async function analyzeMultipleSymptoms(symptomsList, userContext) {
-  if (!Array.isArray(symptomsList) || symptomsList.length === 0) {
-    return await analyzeSymptoms('', userContext);
-  }
-
-  var combinedSymptoms = symptomsList.join('; ');
-  return await analyzeSymptoms(combinedSymptoms, userContext);
+  return await analyzeWithGemini(symptoms, userContext || {}, imageBase64, 1);
 }
 
 module.exports = {
   analyzeSymptoms: analyzeSymptoms,
-  analyzeMultipleSymptoms: analyzeMultipleSymptoms,
-  buildSymptomPrompt: buildSymptomPrompt,
-  parseJsonResponse: parseJsonResponse,
-  cleanJsonResponse: cleanJsonResponse,
-  getFallbackResponse: getFallbackResponse,
+  getSafeResponse: getSafeResponse,
   DEFAULT_MODEL: DEFAULT_MODEL
 };

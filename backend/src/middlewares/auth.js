@@ -18,6 +18,11 @@ const protect = async (req, res, next) => {
       throw new ApiError(401, 'You are not logged in. Please log in to get access.');
     }
 
+    if (!config.jwt || !config.jwt.secret) {
+      console.error('JWT secret not configured');
+      throw new ApiError(500, 'Server configuration error');
+    }
+
     const decoded = jwt.verify(token, config.jwt.secret);
 
     const currentUser = await User.findById(decoded.id);
@@ -32,7 +37,13 @@ const protect = async (req, res, next) => {
     req.user = currentUser;
     next();
   } catch (error) {
-    next(new ApiError(401, 'Invalid token. Please log in again.'));
+    if (error.name === 'TokenExpiredError') {
+      next(new ApiError(401, 'Session expired. Please log in again.'));
+    } else if (error.name === 'JsonWebTokenError') {
+      next(new ApiError(401, 'Invalid token. Please log in again.'));
+    } else {
+      next(error);
+    }
   }
 };
 
