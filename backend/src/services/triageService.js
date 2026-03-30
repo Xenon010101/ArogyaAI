@@ -1,4 +1,4 @@
-const { triage } = require('../../utils/triage');
+const { triage } = require('../utils/triage');
 
 class TriageService {
   async analyzeSymptoms(symptoms) {

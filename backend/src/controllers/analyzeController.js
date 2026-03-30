@@ -1,8 +1,8 @@
-const Analysis = require('../../models/Analysis');
-const ApiError = require('../../utils/ApiError');
-const triageService = require('../../services/triageService');
-const aiService = require('../../services/aiService');
-const { processUploadedFiles } = require('../../services/fileService');
+const Analysis = require('../models/Analysis');
+const ApiError = require('../utils/ApiError');
+const triageService = require('../services/triageService');
+const aiService = require('../services/aiService');
+const { processUploadedFiles } = require('../services/fileService');
 
 function determineCombinedRisk(triageResult, aiResult) {
   if (triageResult.isEmergency || triageResult.severity === 'critical') {

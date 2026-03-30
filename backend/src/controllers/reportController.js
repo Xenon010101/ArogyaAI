@@ -1,5 +1,5 @@
-const Report = require('../../models/Report');
-const ApiError = require('../../utils/ApiError');
+const Report = require('../models/Report');
+const ApiError = require('../utils/ApiError');
 
 exports.getAllReports = async (req, res, next) => {
   try {

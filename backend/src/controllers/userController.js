@@ -1,5 +1,5 @@
-const User = require('../../models/User');
-const ApiError = require('../../utils/ApiError');
+const User = require('../models/User');
+const ApiError = require('../utils/ApiError');
 
 exports.getAllUsers = async (req, res, next) => {
   try {
