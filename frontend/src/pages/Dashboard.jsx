@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { analyzeApi } from '../api/analyzeApi'
 import { Activity, Plus, Clock, AlertTriangle, TrendingUp, FileText } from 'lucide-react'
-import { Card, Button, LoadingSpinner, RiskBadge, Alert } from '../components/common'
+import { Card, Button, LoadingSpinner, RiskBadge, Alert, ErrorState, EmptyState } from '../components/common'
 import toast from 'react-hot-toast'
 
 export default function Dashboard() {
@@ -11,17 +11,19 @@ export default function Dashboard() {
   const [recentAnalyses, setRecentAnalyses] = useState([])
   const [stats, setStats] = useState({ total: 0, critical: 0, high: 0, moderate: 0, low: 0 })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  useEffect(() => {
-    fetchDashboardData()
-  }, [])
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
     try {
-      const response = await analyzeApi.getMyAnalyses({ limit: 5 })
-      setRecentAnalyses(response.data.analyses)
+      const [recentResponse, allResponse] = await Promise.all([
+        analyzeApi.getMyAnalyses({ limit: 5 }),
+        analyzeApi.getMyAnalyses({ limit: 100 }),
+      ])
 
-      const allResponse = await analyzeApi.getMyAnalyses({ limit: 100 })
+      setRecentAnalyses(recentResponse.data.analyses)
+
       const analyses = allResponse.data.analyses
       setStats({
         total: analyses.length,
@@ -30,15 +32,24 @@ export default function Dashboard() {
         moderate: analyses.filter((a) => a.combinedRiskLevel === 'moderate').length,
         low: analyses.filter((a) => a.combinedRiskLevel === 'low').length,
       })
-    } catch (error) {
-      toast.error('Failed to load dashboard data')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load dashboard data')
+      toast.error('Failed to load dashboard')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [fetchDashboardData])
 
   if (loading) {
     return <LoadingSpinner size="lg" />
+  }
+
+  if (error) {
+    return <ErrorState message={error} onRetry={fetchDashboardData} />
   }
 
   return (
@@ -119,13 +130,16 @@ export default function Dashboard() {
         </div>
 
         {recentAnalyses.length === 0 ? (
-          <div className="text-center py-8">
-            <Activity className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">No analyses yet</p>
-            <Link to="/analyze">
-              <Button variant="outline">Start Your First Analysis</Button>
-            </Link>
-          </div>
+          <EmptyState
+            icon={Activity}
+            title="No analyses yet"
+            description="Start by describing your symptoms for AI-powered health insights."
+            action={
+              <Link to="/analyze">
+                <Button variant="outline">Start Your First Analysis</Button>
+              </Link>
+            }
+          />
         ) : (
           <div className="space-y-4">
             {recentAnalyses.map((analysis) => (

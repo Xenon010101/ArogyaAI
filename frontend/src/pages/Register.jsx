@@ -16,10 +16,12 @@ export default function Register() {
   })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
+  const [error, setError] = useState(null)
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
     setErrors({ ...errors, [e.target.name]: '' })
+    setError(null)
   }
 
   const validate = () => {
@@ -46,12 +48,14 @@ export default function Register() {
     if (!validate()) return
 
     setLoading(true)
+    setError(null)
     try {
       await register(formData)
       toast.success('Account created successfully!')
       navigate('/dashboard')
-    } catch (error) {
-      const message = error.response?.data?.message || 'Registration failed'
+    } catch (err) {
+      const message = err.response?.data?.message || 'Registration failed. Please try again.'
+      setError(message)
       toast.error(message)
     } finally {
       setLoading(false)
@@ -71,6 +75,12 @@ export default function Register() {
 
         <Card>
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Sign Up</h2>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="relative">

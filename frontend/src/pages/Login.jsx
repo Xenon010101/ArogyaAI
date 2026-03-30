@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { Activity, Mail, Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { Button, Input, Card } from '../components/common'
+import { Button, Input, Card, ErrorState } from '../components/common'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -11,10 +11,12 @@ export default function Login() {
   const [formData, setFormData] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
+  const [error, setError] = useState(null)
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
     setErrors({ ...errors, [e.target.name]: '' })
+    setError(null)
   }
 
   const validate = () => {
@@ -31,16 +33,23 @@ export default function Login() {
     if (!validate()) return
 
     setLoading(true)
+    setError(null)
     try {
       await login(formData.email, formData.password)
       toast.success('Welcome back!')
       navigate('/dashboard')
-    } catch (error) {
-      const message = error.response?.data?.message || 'Login failed'
+    } catch (err) {
+      const message = err.response?.data?.message || 'Login failed. Please try again.'
+      setError(message)
       toast.error(message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleRetry = () => {
+    setError(null)
+    setFormData({ email: '', password: '' })
   }
 
   return (
@@ -56,6 +65,12 @@ export default function Login() {
 
         <Card>
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Sign in to your account</h2>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="relative">

@@ -3,9 +3,8 @@ import api from './axios'
 export const analyzeApi = {
   analyze: async (formData) => {
     const response = await api.post('/analyze', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
     })
     return response.data
   },
@@ -29,16 +28,6 @@ export const analyzeApi = {
 export const reportApi = {
   getReports: async (params = {}) => {
     const response = await api.get('/reports', { params })
-    return response.data
-  },
-
-  getReport: async (id) => {
-    const response = await api.get(`/reports/${id}`)
-    return response.data
-  },
-
-  createReport: async (data) => {
-    const response = await api.post('/reports', data)
     return response.data
   },
 }

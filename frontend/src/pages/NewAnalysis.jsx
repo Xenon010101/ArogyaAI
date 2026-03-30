@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { analyzeApi } from '../api/analyzeApi'
 import { Upload, FileText, Image, X, AlertCircle, CheckCircle } from 'lucide-react'
-import { Card, Button, TextArea, Input, LoadingSpinner, Alert } from '../components/common'
+import { Card, Button, TextArea, Input, LoadingSpinner, Alert, ErrorState } from '../components/common'
 import toast from 'react-hot-toast'
 
 export default function NewAnalysis() {
@@ -22,6 +22,7 @@ export default function NewAnalysis() {
   const [loading, setLoading] = useState(false)
   const [checkingTriage, setCheckingTriage] = useState(false)
   const [errors, setErrors] = useState({})
+  const [triageError, setTriageError] = useState(null)
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -31,20 +32,43 @@ export default function NewAnalysis() {
 
   const handleImageSelect = (e) => {
     const files = Array.from(e.target.files)
-    if (images.length + files.length > 5) {
+    const validFiles = files.filter((file) => {
+      if (!file.type.startsWith('image/')) {
+        toast.error(`${file.name} is not a valid image`)
+        return false
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} exceeds 5MB limit`)
+        return false
+      }
+      return true
+    })
+    if (images.length + validFiles.length > 5) {
       toast.error('Maximum 5 images allowed')
       return
     }
-    setImages([...images, ...files])
+    setImages([...images, ...validFiles])
   }
 
   const handlePrescriptionSelect = (e) => {
     const files = Array.from(e.target.files)
-    if (prescriptions.length + files.length > 3) {
+    const validFiles = files.filter((file) => {
+      const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+      if (!validTypes.includes(file.type)) {
+        toast.error(`${file.name} is not a valid file type`)
+        return false
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} exceeds 5MB limit`)
+        return false
+      }
+      return true
+    })
+    if (prescriptions.length + validFiles.length > 3) {
       toast.error('Maximum 3 prescriptions allowed')
       return
     }
-    setPrescriptions([...prescriptions, ...files])
+    setPrescriptions([...prescriptions, ...validFiles])
   }
 
   const removeImage = (index) => {
@@ -62,11 +86,12 @@ export default function NewAnalysis() {
     }
 
     setCheckingTriage(true)
+    setTriageError(null)
     try {
       const response = await analyzeApi.preCheck(formData.symptoms)
       setTriagePreview(response.data.triage)
     } catch (error) {
-      toast.error('Failed to check symptoms')
+      setTriageError('Failed to check symptoms. Please try again.')
     } finally {
       setCheckingTriage(false)
     }
@@ -100,7 +125,7 @@ export default function NewAnalysis() {
       toast.success('Analysis complete!')
       navigate(`/result/${response.data.id}`)
     } catch (error) {
-      const message = error.response?.data?.message || 'Analysis failed'
+      const message = error.response?.data?.message || 'Analysis failed. Please try again.'
       toast.error(message)
     } finally {
       setLoading(false)
@@ -139,6 +164,14 @@ export default function NewAnalysis() {
               Check Emergency
             </Button>
           </div>
+
+          {checkingTriage && <LoadingSpinner size="sm" />}
+
+          {triageError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {triageError}
+            </div>
+          )}
 
           {triagePreview && (
             <div className="mt-4 p-4 bg-gray-50 rounded-lg">

@@ -1,32 +1,52 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { analyzeApi } from '../api/analyzeApi'
-import { AlertTriangle, Clock, User, FileText, Image, Download, ArrowLeft, Share2 } from 'lucide-react'
-import { Card, Button, LoadingSpinner, RiskBadge, Alert } from '../components/common'
+import { AlertTriangle, Clock, User, FileText, Image, ArrowLeft } from 'lucide-react'
+import { Card, Button, LoadingSpinner, RiskBadge, Alert, ErrorState } from '../components/common'
 import toast from 'react-hot-toast'
 
 export default function Result() {
   const { id } = useParams()
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  useEffect(() => {
-    fetchAnalysis()
-  }, [id])
-
-  const fetchAnalysis = async () => {
+  const fetchAnalysis = useCallback(async () => {
+    setLoading(true)
+    setError(null)
     try {
       const response = await analyzeApi.getAnalysis(id)
       setAnalysis(response.data.analysis)
-    } catch (error) {
-      toast.error('Failed to load analysis')
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to load analysis'
+      setError(message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [id])
+
+  useEffect(() => {
+    fetchAnalysis()
+  }, [fetchAnalysis])
 
   if (loading) {
     return <LoadingSpinner size="lg" />
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <ErrorState message={error} onRetry={fetchAnalysis} />
+        <div className="mt-4 text-center">
+          <Link to="/dashboard">
+            <Button variant="outline">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   if (!analysis) {

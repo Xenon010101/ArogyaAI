@@ -3,18 +3,20 @@ import api from './axios'
 export const authApi = {
   register: async (data) => {
     const response = await api.post('/auth/register', data)
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token)
-      localStorage.setItem('user', JSON.stringify(response.data.data.user))
+    const { token, data: userData } = response.data
+    if (token) {
+      localStorage.setItem('token', token)
+      localStorage.setItem('user', JSON.stringify(userData.user))
     }
     return response.data
   },
 
   login: async (data) => {
     const response = await api.post('/auth/login', data)
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token)
-      localStorage.setItem('user', JSON.stringify(response.data.data.user))
+    const { token, data: userData } = response.data
+    if (token) {
+      localStorage.setItem('token', token)
+      localStorage.setItem('user', JSON.stringify(userData.user))
     }
     return response.data
   },
@@ -22,6 +24,8 @@ export const authApi = {
   logout: async () => {
     try {
       await api.post('/auth/logout')
+    } catch (error) {
+      console.warn('Logout API failed, clearing local storage')
     } finally {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
@@ -30,11 +34,6 @@ export const authApi = {
 
   getMe: async () => {
     const response = await api.get('/auth/me')
-    return response.data
-  },
-
-  updatePassword: async (data) => {
-    const response = await api.patch('/auth/update-password', data)
     return response.data
   },
 }
