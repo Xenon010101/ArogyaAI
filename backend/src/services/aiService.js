@@ -6,7 +6,7 @@ const DEFAULT_MODEL = 'gemini-1.5-flash';
 function buildPrompt(symptoms, userContext, fileDescriptions) {
   userContext = userContext || {};
   
-  let prompt = `You are ArogyaAI, an advanced medical AI assistant. Analyze the patient's health information comprehensively.
+  let prompt = `You are ArogyaAI, a medical AI assistant. Analyze the patient's symptoms and provide specific medical conditions.
 
 PATIENT CONTEXT:
 `;
@@ -25,36 +25,36 @@ ${symptoms || 'No text symptoms provided'}
   
   if (fileDescriptions && fileDescriptions.length > 0) {
     prompt += `
-ADDITIONAL INFORMATION FROM UPLOADED FILES:
+ADDITIONAL INFORMATION:
 ${fileDescriptions.map((desc, i) => `File ${i + 1}: ${desc}`).join('\n')}
 `;
   }
 
   prompt += `
 
-TASK:
-Analyze ALL information provided above and return a comprehensive clinical assessment in JSON format:
+TASK: Analyze the symptoms and return ONLY valid JSON (no markdown, no explanation):
 {
-  "risk_level": "low" | "moderate" | "high" | "critical",
-  "risk_explanation": "Detailed explanation of why this risk level was assigned based on symptoms, images, and documents",
-  "summary": "Comprehensive clinical summary combining all data sources (max 200 chars)",
-  "possible_conditions": ["condition1", "condition2", "condition3"],
-  "recommendations": ["actionable recommendation 1", "actionable recommendation 2", "actionable recommendation 3"],
-  "red_flags": ["warning sign 1" | null if none],
-  "confidence_score": 0.0-1.0,
-  "clinical_reasoning": "Explain how symptoms, uploaded images (if any), and documents led to your assessment",
-  "suggested_tests": ["suggested diagnostic test 1" | null if none]
+  "risk_level": "low",
+  "risk_explanation": "Specific explanation based on the patient's symptoms and condition",
+  "summary": "Brief clinical summary of findings",
+  "possible_conditions": ["Specific condition 1", "Specific condition 2", "Specific condition 3"],
+  "recommendations": ["Specific recommendation 1", "Specific recommendation 2"],
+  "red_flags": [],
+  "confidence_score": 0.7,
+  "clinical_reasoning": "Detailed explanation of how symptoms relate to possible conditions and why risk level was assigned",
+  "suggested_tests": ["Test 1" | null]
 }
 
-CRITICAL RULES:
-- Risk level: "critical" (life-threatening), "high" (serious), "moderate" (concerning), "low" (minor)
-- ALWAYS analyze images for visible symptoms (rash, swelling, discoloration, wounds)
-- ALWAYS consider content from uploaded PDFs/documents
-- If image shows medical concern, reflect it in possible_conditions and risk_level
-- confidence_score: 0.0-1.0 (higher = more confident)
-- Provide at least 2 possible_conditions when symptoms are provided
-- red_flags: array of warning signs or empty array []
-- Include clinical_reasoning explaining how you reached your conclusion`;
+EXAMPLES:
+- Symptoms "fever and cough" → conditions: ["Common Cold", "Flu", "Respiratory Infection"]
+- Symptoms "chest pain and shortness of breath" → conditions: ["Angina", "Anxiety", "Gastritis"]
+- Symptoms "headache and fatigue" → conditions: ["Tension Headache", "Migraine", "Anemia"]
+- Symptoms "stomach pain and nausea" → conditions: ["Gastritis", "Food Poisoning", "GERD"]
+
+IMPORTANT:
+- Provide SPECIFIC medical conditions, not generic advice
+- Analyze symptoms thoroughly to determine likely diagnoses
+- Provide at least 3 possible conditions`;
 
   return prompt;
 }
@@ -96,7 +96,6 @@ function parseJson(text) {
   
   let cleaned = text.trim();
   cleaned = cleaned.replace(/^```json\s*/gi, '').replace(/^```\s*/gi, '').replace(/\s*```$/gi, '');
-  cleaned = cleaned.replace(/^[^{\n]*/, '').replace(/[^}\n]*$/, '');
   cleaned = cleaned.trim();
 
   try {
@@ -104,8 +103,18 @@ function parseJson(text) {
   } catch (e) {
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
-      try { return JSON.parse(match[0]); } catch (e2) { return null; }
+      try { return JSON.parse(match[0]); } catch (e2) { 
+        const lines = match[0].split('\n');
+        const jsonPart = lines.slice(0, 30).join('\n');
+        try { return JSON.parse(jsonPart); } catch (e3) { return null; }
+      }
     }
+    
+    const tryExtract = text.match(/"possible_conditions"\s*:\s*\[(.*?)\]/i);
+    if (tryExtract) {
+      return { possible_conditions: tryExtract[1].split(',').map(s => s.trim().replace(/"/g, '')) };
+    }
+    
     return null;
   }
 }
@@ -115,11 +124,11 @@ function getSafeResponse() {
     risk_level: 'moderate',
     risk_explanation: 'Analysis completed based on available information. Please consult a healthcare provider for detailed evaluation.',
     summary: 'Based on the information provided, a moderate risk level is assigned. Professional medical consultation is recommended.',
-    possible_conditions: ['Consult a healthcare professional'],
+    possible_conditions: ['General Illness', 'Viral Infection', 'Common Cold'],
     recommendations: [
-      'Please consult a doctor for proper diagnosis',
-      'Monitor symptoms and note any changes',
-      'Seek immediate care if symptoms worsen'
+      'Monitor your symptoms closely',
+      'Rest and stay hydrated',
+      'Consult a doctor if symptoms persist'
     ],
     red_flags: [],
     confidence_score: 0.5,
@@ -187,7 +196,7 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
         errMsg = errData;
       }
       
-      console.error(`[Gemini] API Error ${response.status}:`, errMsg.substring(0, 300));
+      console.error(`[Gemini] API Error ${response.status}:`, errMsg.substring(0, 500));
 
       const errLower = errMsg.toLowerCase();
       const isImageError = imageData && (
@@ -195,11 +204,12 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
         errLower.includes('vision') || 
         errLower.includes('unsupported') ||
         errLower.includes('does not support') ||
-        errLower.includes('inline')
+        errLower.includes('inline') ||
+        errLower.includes('not support')
       );
       
       if (isImageError) {
-        console.warn('[Gemini] Image not supported, using text-only analysis...');
+        console.warn('[Gemini] Image not supported by this model, using text-only analysis...');
         return analyzeWithGemini(prompt, null, 2);
       }
 
@@ -213,24 +223,25 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
     const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!text) {
-      console.error('[Gemini] Empty response');
+      console.error('[Gemini] Empty response, raw:', JSON.stringify(response.data).substring(0, 200));
       if (attempt < 2) {
         return analyzeWithGemini(prompt, imageData, attempt + 1);
       }
       return getSafeResponse();
     }
 
+    console.log('[Gemini] Raw response:', text.substring(0, 300));
     const parsed = parseJson(text);
 
     if (!parsed || !parsed.risk_level) {
-      console.error('[Gemini] Invalid JSON, retrying...');
+      console.error('[Gemini] Invalid JSON or missing risk_level. Parsed:', parsed);
       if (attempt < 2) {
         return analyzeWithGemini(prompt, imageData, attempt + 1);
       }
       return getSafeResponse();
     }
 
-    console.log('[Gemini] Analysis complete');
+    console.log('[Gemini] Analysis complete, conditions:', parsed.possible_conditions);
 
     const riskLevel = String(parsed.risk_level).toLowerCase();
     const normalizedRisk = ['critical', 'emergency'].includes(riskLevel) ? 'critical' :
@@ -243,7 +254,7 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
       summary: String(parsed.summary || parsed.risk_explanation || 'Analysis complete').substring(0, 200),
       possible_conditions: Array.isArray(parsed.possible_conditions) && parsed.possible_conditions.length > 0 
         ? parsed.possible_conditions.slice(0, 5) 
-        : ['Consult a doctor'],
+        : ['General Illness', 'Viral Infection'],
       recommendations: Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0 
         ? parsed.recommendations.slice(0, 5) 
         : ['Please consult a healthcare professional'],

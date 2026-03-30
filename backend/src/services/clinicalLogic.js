@@ -1,21 +1,39 @@
 const symptomConditionMapping = {
   fever: ['Viral Infection', 'Flu', 'Common Cold'],
+  high_fever: ['Serious Infection', 'Flu', 'COVID-19'],
   cough: ['Respiratory Infection', 'Bronchitis', 'Common Cold'],
   headache: ['Tension Headache', 'Migraine', 'Sinusitis'],
   chest_pain: ['Possible Cardiac Issue', 'Muscle Strain', 'Gastritis'],
+  heart_pain: ['Cardiac Issue', 'Angina', 'Muscle Strain'],
   breathing: ['Respiratory Distress', 'Asthma', 'Anxiety'],
+  shortness_of_breath: ['Respiratory Issue', 'Asthma', 'Heart Problem'],
+  breathlessness: ['Respiratory Distress', 'Anxiety', 'Heart Condition'],
   stomach_pain: ['Gastritis', 'Food Poisoning', 'Indigestion'],
+  abdominal_pain: ['Gastritis', 'Appendicitis', 'Digestive Issue'],
   nausea: ['Gastroenteritis', 'Food Poisoning', 'Migraine'],
   vomiting: ['Gastroenteritis', 'Food Poisoning', 'Motion Sickness'],
   fatigue: ['Viral Infection', 'Anemia', 'Sleep Deprivation'],
+  tiredness: ['Viral Infection', 'Anemia', 'Depression'],
   dizziness: ['Low Blood Pressure', 'Dehydration', 'Inner Ear Issue'],
+  lightheaded: ['Dehydration', 'Low Blood Pressure', 'Anemia'],
   sore_throat: ['Strep Throat', 'Common Cold', 'Allergies'],
+  throat_pain: ['Strep Throat', 'Common Cold', 'Tonsillitis'],
   body_ache: ['Viral Infection', 'Flu', 'Muscle Strain'],
+  body_pain: ['Viral Infection', 'Flu', 'Muscle Strain'],
+  muscle_pain: ['Muscle Strain', 'Viral Infection', 'Fibromyalgia'],
   diarrhea: ['Food Poisoning', 'Gastroenteritis', 'IBS'],
+  loose_stool: ['Gastroenteritis', 'Food Intolerance', 'IBS'],
   rash: ['Allergic Reaction', 'Skin Infection', 'Eczema'],
+  skin_rash: ['Allergic Reaction', 'Viral Rash', 'Eczema'],
   swelling: ['Allergic Reaction', 'Injury', 'Infection'],
   weakness: ['Fatigue', 'Nutritional Deficiency', 'Neurological Issue'],
   numbness: ['Nerve Compression', 'Poor Circulation', 'Neurological Issue'],
+  back_pain: ['Muscle Strain', 'Herniated Disc', 'Kidney Issue'],
+  joint_pain: ['Arthritis', 'Joint Inflammation', 'Gout'],
+  anxiety: ['Anxiety Disorder', 'Stress', 'Panic Disorder'],
+  stress: ['Stress', 'Anxiety', 'Depression'],
+  insomnia: ['Sleep Disorder', 'Stress', 'Depression'],
+  loss_of_appetite: ['Digestive Issue', 'Infection', 'Depression'],
 };
 
 const symptomRiskMapping = {
@@ -46,26 +64,67 @@ function analyzeSymptoms(symptoms, triageResult) {
   let totalRiskScore = 0;
   let riskReasons = [];
 
-  for (const [keyword, info] of Object.entries(symptomRiskMapping)) {
-    if (normalizedSymptoms.includes(keyword.replace('_', ' '))) {
-      detectedSymptoms.push(keyword);
-      totalRiskScore += info.weight;
-      riskReasons.push(info.reason);
+  const symptomVariations = {
+    fever: ['fever', 'febrile', 'high temperature', 'elevated temperature', 'feverish'],
+    cough: ['cough', 'coughing', 'dry cough', 'wet cough'],
+    headache: ['headache', 'head pain', 'head ache', 'migraine'],
+    chest_pain: ['chest pain', 'chest discomfort', 'heart pain', 'tight chest'],
+    breathing: ['breathing', 'breathlessness', 'shortness of breath', 'difficulty breathing', 'dyspnea'],
+    stomach_pain: ['stomach pain', 'stomach ache', 'abdominal pain', 'belly pain', 'tummy ache'],
+    nausea: ['nausea', 'nauseous', 'feeling sick'],
+    vomiting: ['vomiting', 'throwing up', 'being sick'],
+    fatigue: ['fatigue', 'tired', 'exhausted', 'lethargy', 'tiredness', 'weakness'],
+    dizziness: ['dizziness', 'dizzy', 'lightheaded', 'vertigo'],
+    sore_throat: ['sore throat', 'throat pain', 'scratchy throat', 'pharyngitis'],
+    body_ache: ['body ache', 'body pain', 'muscle ache', 'muscle pain', 'aching'],
+    diarrhea: ['diarrhea', 'loose stool', 'watery stool'],
+    rash: ['rash', 'skin rash', 'skin eruption', 'hives'],
+    swelling: ['swelling', 'swollen', 'edema'],
+    back_pain: ['back pain', 'backache', 'lower back pain'],
+    anxiety: ['anxiety', 'anxious', 'nervous', 'worried', 'panic'],
+    stress: ['stress', 'stressed', 'overwhelmed'],
+  };
+
+  for (const [baseKeyword, variations] of Object.entries(symptomVariations)) {
+    for (const variation of variations) {
+      if (normalizedSymptoms.includes(variation)) {
+        if (!detectedSymptoms.includes(baseKeyword)) {
+          detectedSymptoms.push(baseKeyword);
+        }
+        const riskInfo = symptomRiskMapping[baseKeyword];
+        if (riskInfo && !riskReasons.includes(riskInfo.reason)) {
+          totalRiskScore += riskInfo.weight;
+          riskReasons.push(riskInfo.reason);
+        }
+        const conditionList = symptomConditionMapping[baseKeyword];
+        if (conditionList) {
+          conditionList.forEach(c => conditions.add(c));
+        }
+        break;
+      }
     }
   }
 
-  for (const [keyword, conditionList] of Object.entries(symptomConditionMapping)) {
-    if (normalizedSymptoms.includes(keyword.replace('_', ' '))) {
-      conditionList.forEach(c => conditions.add(c));
+  for (const [keyword, info] of Object.entries(symptomRiskMapping)) {
+    const keywordFormatted = keyword.replace(/_/g, ' ');
+    if (normalizedSymptoms.includes(keywordFormatted)) {
+      if (!detectedSymptoms.includes(keyword)) {
+        detectedSymptoms.push(keyword);
+      }
+      if (!riskReasons.includes(info.reason)) {
+        totalRiskScore += info.weight;
+        riskReasons.push(info.reason);
+      }
     }
   }
 
   if (conditions.size === 0) {
     if (normalizedSymptoms.length > 10) {
-      conditions.add('Possible Infection');
       conditions.add('General Illness');
+      conditions.add('Viral Infection');
+      conditions.add('Flu');
     } else {
-      conditions.add('Insufficient Information');
+      conditions.add('Unspecified Condition');
     }
   }
 
@@ -93,25 +152,31 @@ function generateClinicalReasoning(symptoms, analysis) {
   const { detectedSymptoms, conditions, riskLevel, riskReasons, totalRiskScore } = analysis;
   
   if (detectedSymptoms.length === 0) {
-    return 'Based on the symptoms provided, a general assessment was conducted. Further medical evaluation is recommended for accurate diagnosis.';
+    return 'The symptoms provided have been analyzed. Based on the symptom pattern, common conditions may include viral infections, common cold, or general fatigue. Further medical evaluation is recommended for accurate diagnosis.';
   }
 
-  const symptomList = detectedSymptoms.map(s => s.replace('_', ' ')).join(', ');
+  const symptomList = detectedSymptoms.map(s => s.replace(/_/g, ' ')).join(', ');
   
-  let reasoning = `The symptoms reported (${symptomList}) were analyzed. `;
+  let reasoning = `Analysis of symptoms: ${symptomList}. `;
   
   if (riskReasons.length > 0) {
-    reasoning += riskReasons[0];
+    reasoning += riskReasons[0] + '.';
     if (riskReasons.length > 1) {
-      reasoning += `. Additionally, ${riskReasons.slice(1).join('. ')}.`;
+      reasoning += ` Additional concerns include ${riskReasons.slice(1).join(', ')}.`;
     }
   }
   
   if (conditions.length > 0) {
-    reasoning += ` Based on symptom pattern, possible conditions include: ${conditions.join(', ')}.`;
+    reasoning += ` Based on the symptom pattern, possible conditions include: ${conditions.slice(0, 3).join(', ')}.`;
   }
   
-  reasoning += ` Total risk assessment score: ${totalRiskScore}/30.`;
+  if (riskLevel === 'critical' || riskLevel === 'high') {
+    reasoning += ` These symptoms require prompt medical attention.`;
+  } else if (riskLevel === 'moderate') {
+    reasoning += ` Medical consultation is recommended within 24-48 hours.`;
+  } else {
+    reasoning += ` Monitor symptoms and consider rest and hydration.`;
+  }
   
   return reasoning;
 }
@@ -119,24 +184,32 @@ function generateClinicalReasoning(symptoms, analysis) {
 function generateRiskExplanation(riskLevel, analysis) {
   const { detectedSymptoms, riskReasons, totalRiskScore } = analysis;
   
+  const symptomText = detectedSymptoms.length > 0 
+    ? `Symptoms analyzed: ${detectedSymptoms.map(s => s.replace(/_/g, ' ')).join(', ')}.` 
+    : 'Symptoms analyzed based on patient report.';
+  
   const explanations = {
-    critical: `Critical risk level assigned due to presence of high-risk symptoms. ${riskReasons[0] || 'Immediate medical attention required.'} Total symptom severity score: ${totalRiskScore}.`,
-    high: `High risk level due to concerning symptoms. ${riskReasons[0] || 'Medical evaluation recommended.'} Total symptom severity score: ${totalRiskScore}.`,
-    moderate: `Moderate risk level based on reported symptoms. ${riskReasons[0] || 'Monitor symptoms and consider medical consultation.'} Total symptom severity score: ${totalRiskScore}.`,
-    low: `Current symptoms suggest a minor condition. ${riskReasons[0] || 'Rest and self-care recommended.'} Monitor for any changes. Total symptom severity score: ${totalRiskScore}.`
+    critical: `${symptomText} Critical risk level assigned due to high-severity symptoms detected. ${riskReasons[0] || 'Immediate emergency medical care is required.'} Symptom severity score: ${totalRiskScore}/30.`,
+    high: `${symptomText} High risk level due to concerning symptoms that require prompt medical evaluation. ${riskReasons[0] || 'Please consult a doctor soon.'} Symptom severity score: ${totalRiskScore}/30.`,
+    moderate: `${symptomText} Moderate risk level indicates symptoms that warrant medical attention but are not immediately life-threatening. ${riskReasons[0] || 'Monitor your symptoms.'} Symptom severity score: ${totalRiskScore}/30.`,
+    low: `${symptomText} Low risk level suggests minor symptoms that may resolve with rest and self-care. ${riskReasons[0] || 'Continue monitoring.'} Symptom severity score: ${totalRiskScore}/30.`
   };
   
   return explanations[riskLevel] || explanations.moderate;
 }
 
 function generateSummary(riskLevel, conditions, symptoms) {
-  const condText = conditions.length > 0 ? conditions.slice(0, 2).join(' or ') : 'undetermined condition';
+  if (!conditions || conditions.length === 0) {
+    return 'Your symptoms have been analyzed. Medical consultation is recommended for proper diagnosis and treatment.';
+  }
+  
+  const condText = conditions.slice(0, 2).join(' or ');
   
   const summaries = {
-    critical: `Your symptoms suggest a potentially serious condition. ${capitalizeFirst(condText)} is among the possible diagnoses. Immediate medical consultation is strongly recommended.`,
-    high: `Based on your symptoms, there may be a significant health concern. ${capitalizeFirst(condText)} is among the possible conditions. Medical evaluation within 24 hours is advised.`,
-    moderate: `Your symptoms indicate a moderate health concern. ${capitalizeFirst(condText)} is among the possible diagnoses. Scheduling a medical appointment is recommended.`,
-    low: `Your symptoms appear to indicate a minor condition. ${capitalizeFirst(condText)} may be the cause. Rest and symptom monitoring are advised.`
+    critical: `Based on your symptoms, there is a potential for a serious condition. ${condText} are among the possible diagnoses. Immediate medical attention is required.`,
+    high: `Your symptoms suggest a concerning health issue. ${condText} are among the possible conditions. Urgent medical evaluation is recommended within 24 hours.`,
+    moderate: `Your symptoms indicate a moderate health concern. ${condText} may be causing your symptoms. Medical consultation is advised within 2-3 days.`,
+    low: `Your symptoms appear to indicate a minor condition. ${condText} could be the cause. Rest, hydration, and monitoring are recommended.`
   };
   
   return summaries[riskLevel] || summaries.moderate;

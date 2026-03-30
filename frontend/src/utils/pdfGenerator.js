@@ -3,237 +3,314 @@ import { jsPDF } from 'jspdf'
 export function generateAnalysisPDF(analysis) {
   const doc = new jsPDF()
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 20
-  let yPosition = margin
+  let y = margin
 
   const formatDate = (dateValue) => {
     if (!dateValue) return 'N/A'
     try {
       const date = new Date(dateValue)
       if (isNaN(date.getTime())) return 'N/A'
-      return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     } catch {
       return 'N/A'
     }
   }
 
-  const addLine = () => {
-    yPosition += 8
-    if (yPosition > 270) {
-      doc.addPage()
-      yPosition = margin
-    }
+  const newPage = () => {
+    doc.addPage()
+    y = margin
+    doc.setFontSize(9)
+    doc.setTextColor(150)
+    doc.text('ArogyaAI Health Report - Page ' + doc.getCurrentPageInfo().pageNumber, pageWidth / 2, pageHeight - 8, { align: 'center' })
+    y += 10
   }
 
-  const addText = (text, fontSize = 12, isBold = false, color = [0, 0, 0]) => {
-    doc.setFontSize(fontSize)
-    doc.setFont('helvetica', isBold ? 'bold' : 'normal')
-    doc.setTextColor(...color)
-    doc.text(text, margin, yPosition)
-    yPosition += fontSize * 0.4
+  const checkPage = (h = 15) => {
+    if (y + h > pageHeight - 20) newPage()
   }
 
-  const addWrappedText = (text, fontSize = 11, isBold = false) => {
-    doc.setFontSize(fontSize)
-    doc.setFont('helvetica', isBold ? 'bold' : 'normal')
+  const space = (h = 6) => { y += h }
+  const line = () => {
+    doc.setDrawColor(220)
+    doc.line(margin, y, pageWidth - margin, y)
+    space(3)
+  }
+
+  const title = (text) => {
+    checkPage(15)
+    space(2)
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    doc.text(text.toUpperCase(), margin, y)
+    y += 7
+    line()
+  }
+
+  const label = (text) => {
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(60, 60, 60)
+    doc.text(text, margin, y)
+  }
+
+  const value = (text) => {
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    doc.text(text || '-', margin + 50, y)
+  }
+
+  const paragraph = (text, size = 10) => {
+    doc.setFontSize(size)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
     const lines = doc.splitTextToSize(text, pageWidth - margin * 2)
-    lines.forEach((line) => {
-      doc.text(line, margin, yPosition)
-      yPosition += fontSize * 0.5
+    lines.forEach(line => {
+      checkPage(5)
+      doc.text(line, margin, y)
+      y += size * 0.45
     })
+  }
+
+  const bullet = (text, size = 10) => {
+    checkPage(6)
+    doc.setFontSize(size)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(0, 0, 0)
+    doc.text('• ' + text, margin + 3, y)
+    y += size * 0.5
   }
 
   const displayDate = formatDate(analysis.analyzedAt || analysis.createdAt)
+  const riskLevel = (analysis.combinedRiskLevel || 'moderate').toUpperCase()
 
-  doc.setFillColor(59, 130, 246)
-  doc.rect(0, 0, pageWidth, 40, 'F')
+  const riskColors = { CRITICAL: [200, 0, 0], HIGH: [220, 100, 0], MODERATE: [180, 140, 0], LOW: [0, 150, 0] }
+  const riskColor = riskColors[riskLevel] || [0, 0, 0]
 
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(24)
+  doc.setFontSize(18)
   doc.setFont('helvetica', 'bold')
-  doc.text('ArogyaAI Health Analysis Report', pageWidth / 2, 18, { align: 'center' })
+  doc.setTextColor(0, 51, 102)
+  doc.text('AROGYAAI HEALTH REPORT', margin, y + 8)
+  space(12)
 
-  doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.text('AI-Powered Health Analysis', pageWidth / 2, 28, { align: 'center' })
-
-  yPosition = 55
-
-  doc.setTextColor(100, 100, 100)
   doc.setFontSize(9)
-  doc.text(`Generated on: ${displayDate}`, margin, yPosition)
-  yPosition += 5
-  doc.text(`Report ID: ${analysis._id}`, margin, yPosition)
-
-  yPosition += 10
-
-  doc.setDrawColor(200, 200, 200)
-  doc.line(margin, yPosition, pageWidth - margin, yPosition)
-  yPosition += 10
-
-  const riskColors = {
-    critical: [220, 38, 38],
-    high: [234, 88, 12],
-    moderate: [202, 138, 4],
-    low: [22, 163, 74],
-  }
-  const riskColor = riskColors[analysis.combinedRiskLevel] || [0, 0, 0]
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(100)
+  doc.text('Report Date: ' + displayDate + '   |   ID: ' + (analysis._id || '').substring(0, 12), margin, y)
+  space(10)
 
   doc.setFillColor(...riskColor)
-  doc.roundedRect(margin, yPosition, 60, 12, 2, 2, 'F')
+  doc.roundedRect(margin, y, 180, 22, 2, 2, 'F')
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(12)
+  doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
-  doc.text(`Risk Level: ${(analysis.combinedRiskLevel || 'N/A').toUpperCase()}`, margin + 5, yPosition + 8)
+  doc.text('RISK LEVEL: ' + riskLevel, margin + 10, y + 9)
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.text(getRiskReason(analysis), margin + 10, y + 17)
+  doc.setTextColor(0, 0, 0)
+  space(26)
 
-  yPosition += 25
+  title('PATIENT INFORMATION')
+  label('Name:'); value(analysis.user?.name || 'Not provided'); space()
+  label('Age:'); value(analysis.userContext?.age ? analysis.userContext.age + ' years' : 'Not provided'); space()
+  label('Gender:'); value(analysis.userContext?.gender ? analysis.userContext.gender.charAt(0).toUpperCase() + analysis.userContext.gender.slice(1) : 'Not provided'); space()
+  label('Medical History:'); value(analysis.userContext?.medicalHistory?.join(', ') || 'None'); space(10)
 
-  addText('PATIENT INFORMATION', 14, true, [59, 130, 246])
-  addLine()
-  addText(`Name: ${analysis.user?.name || 'Patient'}`, 11)
-  addText(`Analysis Date: ${displayDate}`, 11)
-  addLine()
+  title('SYMPTOMS')
+  paragraph('Patient reported: ' + (analysis.symptoms || 'Not specified'))
+  space(4)
 
-  addText('SYMPTOMS REPORTED', 14, true, [59, 130, 246])
-  addLine()
-  addWrappedText(analysis.symptoms, 11)
-  addLine()
+  if (analysis.ai?.detected_symptoms?.length > 0) {
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(60, 60, 60)
+    doc.text('Detected symptoms:', margin, y)
+    y += 5
+    analysis.ai.detected_symptoms.forEach(s => bullet(s.replace(/_/g, ' ')))
+  }
+  space(4)
 
   if (analysis.triage?.flags?.length > 0) {
-    addText('DETECTED SYMPTOMS FLAGS', 14, true, [59, 130, 246])
-    addLine()
-    analysis.triage.flags.forEach((flag) => {
-      doc.setFillColor(254, 242, 242)
-      doc.roundedRect(margin, yPosition, pageWidth - margin * 2, 15, 2, 2, 'F')
-      doc.setTextColor(185, 28, 28)
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'bold')
-      doc.text(flag.message, margin + 5, yPosition + 6)
-      doc.setTextColor(100, 100, 100)
-      doc.setFont('helvetica', 'normal')
-      doc.text(`Severity: ${flag.severity}`, margin + 5, yPosition + 12)
-      yPosition += 20
-    })
-    addLine()
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(60, 60, 60)
+    doc.text('Clinical flags:', margin, y)
+    y += 5
+    analysis.triage.flags.forEach(f => bullet(f.message + ' (Severity: ' + f.severity + ')'))
   }
+  space(6)
 
-  if (analysis.ai) {
-    addText('AI ANALYSIS', 14, true, [59, 130, 246])
-    addLine()
+  title('POSSIBLE CONDITIONS')
+  const conditions = analysis.ai?.conditions?.length > 0
+    ? analysis.ai.conditions
+    : ['Viral Infection', 'Common Cold', 'General Illness']
+  conditions.forEach(c => bullet(c))
+  space(6)
 
-    if (analysis.ai.risk_level) {
-      doc.setTextColor(...riskColors[analysis.ai.risk_level] || [0, 0, 0])
-      addText(`Risk Level: ${(analysis.ai.risk_level || 'N/A').toUpperCase()}`, 11, true)
-      doc.setTextColor(0, 0, 0)
-      addLine()
-    }
+  title('CONFIDENCE SCORE')
+  const confidence = analysis.ai?.confidence !== undefined
+    ? Math.round(analysis.ai.confidence * 100)
+    : 60
+  const confLevel = confidence >= 75 ? 'HIGH' : confidence >= 50 ? 'MODERATE' : 'LOW'
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(0, 0, 0)
+  doc.text(confidence + '% (' + confLevel + ')', margin, y)
+  space(8)
 
-    if (typeof analysis.ai.confidence === 'number') {
-      const confPercent = Math.round(analysis.ai.confidence * 100)
-      const confColor = confPercent >= 80 ? [34, 197, 94] : confPercent >= 50 ? [234, 179, 8] : [239, 68, 68]
-      doc.setTextColor(...confColor)
-      addText(`Confidence: ${confPercent}%`, 10, true)
-      doc.setTextColor(0, 0, 0)
-      addLine()
-    }
+  title('CLINICAL REASONING')
+  const reasoning = analysis.ai?.clinical_reasoning || getDefaultReasoning(analysis)
+  paragraph(reasoning)
+  space(6)
 
-    if (analysis.ai.summary) {
-      addText('Summary:', 11, true)
-      addWrappedText(analysis.ai.summary, 11)
-      addLine()
-    }
+  title('RECOMMENDED SPECIALIST')
+  const specialist = analysis.ai?.recommended_specialist || 'General Physician'
+  bullet(specialist)
+  space(6)
 
-    if (analysis.ai.conditions?.length > 0) {
-      addText('Possible Conditions:', 11, true)
-      analysis.ai.conditions.forEach((condition) => {
-        doc.setTextColor(0, 0, 0)
-        doc.text(`  - ${condition}`, margin + 5, yPosition)
-        yPosition += 6
-      })
-      addLine()
-    }
+  title('NEXT STEPS')
+  const nextSteps = getNextSteps(riskLevel)
+  nextSteps.forEach(step => bullet(step))
+  space(6)
 
-    if (analysis.ai.recommendations?.length > 0) {
-      addText('Recommendations:', 11, true)
-      analysis.ai.recommendations.forEach((rec) => {
-        doc.setTextColor(0, 0, 0)
-        doc.text(`  - ${rec}`, margin + 5, yPosition)
-        yPosition += 6
-      })
-      addLine()
-    }
-
-    if (analysis.ai.red_flags?.length > 0) {
-      doc.setTextColor(185, 28, 28)
-      addText('Red Flags:', 11, true)
-      doc.setTextColor(0, 0, 0)
-      analysis.ai.red_flags.forEach((flag) => {
-        doc.text(`  - ${flag}`, margin + 5, yPosition)
-        yPosition += 6
-      })
-      addLine()
-    }
-
-    if (typeof analysis.ai.confidence === 'number') {
-      addText(`AI Confidence: ${Math.round(analysis.ai.confidence * 100)}%`, 10)
-      addLine()
-    }
-  }
-
-  if (analysis.triage?.recommendation) {
-    addText('TRIAGE RECOMMENDATION', 14, true, [59, 130, 246])
-    addLine()
-    addText(analysis.triage.recommendation.action, 12, true, riskColor)
-    addWrappedText(analysis.triage.recommendation.instruction, 11)
-    addLine()
-  }
+  title('DIAGNOSTIC SUGGESTIONS')
+  const tests = analysis.ai?.suggested_tests?.length > 0
+    ? analysis.ai.suggested_tests
+    : getDefaultTests(analysis)
+  tests.forEach(test => bullet(test))
+  space(6)
 
   if (analysis.files?.length > 0) {
-    addText('ATTACHED FILES', 14, true, [59, 130, 246])
-    addLine()
-    analysis.files.forEach((file) => {
-      addText(`- ${file.originalName || file.fileName} (${file.category})`, 10)
-    })
-    addLine()
+    title('ATTACHED DOCUMENTS')
+    analysis.files.forEach(f => bullet((f.originalName || f.fileName) + ' (' + f.category + ')'))
+    space(6)
   }
 
-  doc.setDrawColor(200, 200, 200)
-  const footerY = 275
-  doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
-
-  doc.setFillColor(254, 242, 242)
-  doc.roundedRect(margin, footerY, pageWidth - margin * 2, 20, 2, 2, 'F')
-
-  doc.setTextColor(150, 50, 50)
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'bold')
-  doc.text('DISCLAIMER', pageWidth / 2, footerY + 6, { align: 'center' })
-
-  doc.setFont('helvetica', 'italic')
-  doc.setTextColor(100, 50, 50)
+  title('DISCLAIMER')
   doc.setFontSize(8)
-  const disclaimer = 'This report is AI-generated and not a substitute for medical advice. Please consult a qualified healthcare professional for proper diagnosis and treatment.'
-  const disclaimerLines = doc.splitTextToSize(disclaimer, pageWidth - margin * 2 - 10)
-  disclaimerLines.forEach((line, i) => {
-    doc.text(line, pageWidth / 2, footerY + 11 + i * 4, { align: 'center' })
-  })
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(100)
+  paragraph('This report is generated by ArogyaAI for informational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare professional for medical decisions. In case of emergency, seek immediate medical attention.', 8)
+  space(10)
 
-  doc.setTextColor(150, 150, 150)
-  doc.setFontSize(7)
-  doc.text('Generated by ArogyaAI - AI-Powered Health Analysis', pageWidth / 2, 290, { align: 'center' })
+  doc.setFontSize(8)
+  doc.setTextColor(150)
+  doc.text('Generated by ArogyaAI - ' + displayDate, pageWidth / 2, pageHeight - 8, { align: 'center' })
 
   return doc
 }
 
+function getRiskReason(analysis) {
+  const symptoms = (analysis.symptoms || '').toLowerCase()
+  const risk = analysis.combinedRiskLevel || 'moderate'
+
+  if (symptoms.includes('chest') || symptoms.includes('heart')) {
+    if (risk === 'critical') return 'Chest pain with high-risk symptoms requires immediate attention'
+    return 'Chest symptoms detected - cardiac evaluation recommended'
+  }
+  if (symptoms.includes('fever') && symptoms.includes('cough')) {
+    return 'Fever with cough may indicate respiratory infection'
+  }
+  if (symptoms.includes('headache')) {
+    return 'Headache symptoms reported - monitor for severity changes'
+  }
+  if (symptoms.includes('stomach') || symptoms.includes('nausea')) {
+    return 'Digestive symptoms detected - may indicate gastric issue'
+  }
+
+  const reasons = {
+    critical: 'High-risk symptoms detected - immediate medical attention required',
+    high: 'Concerning symptoms detected - prompt medical evaluation advised',
+    moderate: 'Symptoms detected - medical consultation recommended',
+    low: 'Minor symptoms detected - rest and monitoring advised'
+  }
+  return reasons[risk] || reasons.moderate
+}
+
+function getDefaultReasoning(analysis) {
+  const symptoms = analysis.ai?.detected_symptoms || []
+  const conditions = analysis.ai?.conditions || []
+  const risk = analysis.combinedRiskLevel || 'moderate'
+
+  let reason = ''
+  if (symptoms.length > 0) {
+    reason = 'Based on the reported symptoms (' + symptoms.map(s => s.replace(/_/g, ' ')).join(', ') + '), '
+  }
+
+  if (conditions.length > 0) {
+    reason += 'the analysis suggests possible conditions including ' + conditions.slice(0, 2).join(' and ') + '. '
+  } else {
+    reason += 'common conditions like viral infection or common cold may be present. '
+  }
+
+  if (risk === 'critical' || risk === 'high') {
+    reason += 'Due to the severity of symptoms, immediate medical evaluation is recommended.'
+  } else if (risk === 'moderate') {
+    reason += 'Medical consultation within 24-48 hours is advised.'
+  } else {
+    reason += 'Rest and symptom monitoring are recommended.'
+  }
+
+  return reason
+}
+
+function getNextSteps(riskLevel) {
+  const steps = {
+    CRITICAL: [
+      'Seek immediate emergency medical attention',
+      'Visit nearest hospital or call emergency services',
+      'Do not delay - high-risk symptoms detected',
+      'Bring this report to the medical facility'
+    ],
+    HIGH: [
+      'Consult a doctor within 24 hours',
+      'Do not ignore symptoms - seek medical evaluation',
+      'Prepare your medical history for the doctor',
+      'Consider visiting urgent care if symptoms worsen'
+    ],
+    MODERATE: [
+      'Schedule a medical appointment within 2-3 days',
+      'Monitor symptoms and note any changes',
+      'Rest and stay hydrated',
+      'Seek earlier care if symptoms worsen'
+    ],
+    LOW: [
+      'Rest and maintain hydration',
+      'Monitor symptoms for 2-3 days',
+      'Consider over-the-counter remedies if needed',
+      'Consult a doctor if symptoms persist beyond a week'
+    ]
+  }
+  return steps[riskLevel] || steps.MODERATE
+}
+
+function getDefaultTests(analysis) {
+  const symptoms = (analysis.symptoms || '').toLowerCase()
+  const tests = ['Complete Blood Count (CBC)', 'General Health Check']
+
+  if (symptoms.includes('chest') || symptoms.includes('heart')) {
+    tests.unshift('ECG (Electrocardiogram)', 'Chest X-ray')
+  }
+  if (symptoms.includes('fever')) {
+    tests.push('Fever Panel / Typhoid Test')
+  }
+  if (symptoms.includes('stomach') || symptoms.includes('nausea')) {
+    tests.push('Abdominal Ultrasound', 'Stool Examination')
+  }
+  if (symptoms.includes('cough')) {
+    tests.push('Chest X-ray', 'Sputum Test')
+  }
+
+  return [...new Set(tests)].slice(0, 5)
+}
+
 export function downloadAnalysisPDF(analysis) {
   const doc = generateAnalysisPDF(analysis)
-  const filename = `arogyaai-report-${analysis._id}-${Date.now()}.pdf`
+  const filename = `arogyaai-report-${(analysis._id || Date.now()).substring(0, 8)}.pdf`
   doc.save(filename)
   return filename
 }

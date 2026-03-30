@@ -262,6 +262,20 @@ export default function Result() {
           </div>
         )}
 
+        {/* Image Analysis Warning */}
+        {analysis.imageAnalysisFailed && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-900">Image Could Not Be Analyzed</p>
+              <p className="text-sm text-amber-700 mt-1">
+                The uploaded image could not be processed by the AI model. Analysis was performed based on text symptoms only. 
+                For a complete analysis, please consult a healthcare professional.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Main Analysis */}
