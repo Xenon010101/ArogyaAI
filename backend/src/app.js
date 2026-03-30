@@ -8,6 +8,7 @@ const hpp = require('hpp');
 const healthRoutes = require('./routes/healthRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 const globalErrorHandler = require('./middlewares/errorHandler');
 const ApiError = require('./utils/ApiError');
 const rateLimiter = require('./middlewares/rateLimiter');
@@ -34,6 +35,7 @@ app.use('/api', rateLimiter);
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.all('*', (req, res, next) => {
   next(new ApiError(404, `Route ${req.originalUrl} not found`));
