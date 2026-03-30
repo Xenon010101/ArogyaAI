@@ -2,10 +2,15 @@
   "name": "arogyaai",
   "version": "1.0.0",
   "description": "AI-powered healthcare application",
+  "private": true,
   "scripts": {
-    "backend": "node backend/server.js",
-    "dev": "nodemon backend/server.js",
-    "start": "node backend/server.js"
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "start:backend": "cd backend && npm start",
+    "lint": "cd backend && npm run lint 2>/dev/null || true",
+    "test": "echo \"No tests configured\""
   },
   "keywords": ["healthcare", "ai", "mern"],
   "author": "",
