@@ -16,7 +16,7 @@ Required JSON structure:
 
 Rules:
 - Always respond with valid JSON
-- No markdown formatting (no ```json, no ```)
+- No markdown formatting (no \`\`\`json, no \`\`\`)
 - No explanatory text outside JSON
 - urgentFlag: true only if symptoms suggest emergency
 - If unsure, say "consult a doctor" in recommendations

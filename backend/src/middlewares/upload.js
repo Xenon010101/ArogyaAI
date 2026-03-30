@@ -20,11 +20,11 @@ function sanitizeFilename(originalName) {
   const timestamp = Date.now();
   const random = crypto.randomBytes(4).toString('hex');
 
-  return `${sanitized}_${timestamp}_${random}${ext}`;
+  return sanitized + '_' + timestamp + '_' + random + ext;
 }
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: function(req, file, cb) {
     const subDir = file.fieldname === 'prescriptions' ? 'prescriptions' : 'images';
     const dir = path.join(UPLOAD_DIR, subDir);
 
@@ -34,10 +34,10 @@ const storage = multer.diskStorage({
 
     cb(null, dir);
   },
-  filename: (req, file, cb) => {
+  filename: function(req, file, cb) {
     const sanitized = sanitizeFilename(file.originalname);
     cb(null, sanitized);
-  },
+  }
 });
 
 const ALLOWED_IMAGE_TYPES = [
@@ -54,20 +54,15 @@ const ALLOWED_DOCUMENT_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
 
-const ALLLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_DOCUMENT_TYPES];
+const ALLLOWED_TYPES = ALLOWED_IMAGE_TYPES.concat(ALLOWED_DOCUMENT_TYPES);
 
-const fileFilter = (req, file, cb) => {
-  if (ALLLOWED_TYPES.includes(file.mimetype)) {
+function fileFilter(req, file, cb) {
+  if (ALLLOWED_TYPES.indexOf(file.mimetype) !== -1) {
     cb(null, true);
   } else {
-    cb(
-      new Error(
-        `Invalid file type: ${file.mimetype}. Allowed: JPG, PNG, GIF, WebP, PDF, DOC, DOCX`
-      ),
-      false
-    );
+    cb(new Error('Invalid file type. Allowed: JPG, PNG, GIF, WebP, PDF, DOC, DOCX'), false);
   }
-};
+}
 
 const limits = {
   fileSize: 5 * 1024 * 1024,
@@ -76,9 +71,9 @@ const limits = {
 };
 
 const upload = multer({
-  storage,
-  fileFilter,
-  limits,
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: limits,
 });
 
 const uploadImages = upload.array('images', 5);
@@ -89,10 +84,10 @@ const uploadFiles = upload.fields([
 ]);
 
 module.exports = {
-  upload,
-  uploadImages,
-  uploadPrescriptions,
-  uploadFiles,
-  ALLOWED_TYPES,
-  UPLOAD_DIR,
+  upload: upload,
+  uploadImages: uploadImages,
+  uploadPrescriptions: uploadPrescriptions,
+  uploadFiles: uploadFiles,
+  ALLOWED_TYPES: ALLLOWED_TYPES,
+  UPLOAD_DIR: UPLOAD_DIR,
 };
