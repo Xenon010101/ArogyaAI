@@ -31,11 +31,12 @@ const analysisSchema = new mongoose.Schema(
       },
     },
     aiAnalysis: {
+      risk_level: String,
       summary: String,
-      possibleConditions: [String],
+      conditions: [String],
       recommendations: [String],
-      urgentFlag: Boolean,
-      specialistSuggestion: String,
+      red_flags: [String],
+      confidence: Number,
     },
     combinedRiskLevel: {
       type: String,

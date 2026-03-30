@@ -6,6 +6,23 @@ import { Clock, Filter, Search, FileText, ChevronLeft, ChevronRight, Download } 
 import { Card, Button, LoadingSpinner, RiskBadge, ErrorState, EmptyState } from '../components/common'
 import toast from 'react-hot-toast'
 
+function formatDate(dateValue) {
+  if (!dateValue) return 'N/A'
+  try {
+    const date = new Date(dateValue)
+    if (isNaN(date.getTime())) return 'N/A'
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return 'N/A'
+  }
+}
+
 export default function History() {
   const [analyses, setAnalyses] = useState([])
   const [loading, setLoading] = useState(true)
@@ -187,13 +204,7 @@ export default function History() {
                       <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                         <span className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
-                          {new Date(analysis.createdAt).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatDate(analysis.createdAt)}
                         </span>
                         {analysis.files?.length > 0 && (
                           <span className="flex items-center gap-1">

@@ -5,15 +5,15 @@ const aiService = require('../services/aiService');
 const { processUploadedFiles } = require('../services/fileService');
 
 function determineCombinedRisk(triageResult, aiResult) {
-  if (triageResult.isEmergency || triageResult.severity === 'critical') {
+  if (triageResult.isEmergency || triageResult.severity === 'critical' || aiResult.risk_level === 'critical') {
     return 'critical';
   }
 
-  if (triageResult.severity === 'high' || aiResult.urgentFlag) {
+  if (triageResult.severity === 'high' || aiResult.risk_level === 'high') {
     return 'high';
   }
 
-  if (triageResult.severity === 'moderate') {
+  if (triageResult.severity === 'moderate' || aiResult.risk_level === 'moderate') {
     return 'moderate';
   }
 
@@ -48,13 +48,48 @@ exports.analyze = async function(req, res, next) {
     const processedFiles = processUploadedFiles(req.files);
     const allFiles = processedFiles.all;
 
+    let imageBase64 = null;
+    if (processedFiles.images && processedFiles.images.length > 0) {
+      try {
+        const fs = require('fs');
+        const firstImage = processedFiles.images[0];
+        if (firstImage.path) {
+          const imageBuffer = fs.readFileSync(firstImage.path);
+          imageBase64 = {
+            data: imageBuffer.toString('base64'),
+            mimeType: firstImage.mimetype || 'image/jpeg'
+          };
+        }
+      } catch (imgError) {
+        console.warn('Could not process image for AI:', imgError.message);
+      }
+    }
+
     let aiResult;
     try {
-      aiResult = await aiService.analyzeSymptoms(symptoms, userContext);
+      aiResult = await aiService.analyzeSymptoms(symptoms, userContext, imageBase64);
     } catch (aiError) {
       console.error('AI analysis failed:', aiError.message);
-      aiResult = aiService.getFallbackResponse();
+      aiResult = {
+        risk_level: 'moderate',
+        summary: 'Analysis temporarily unavailable. Please consult a healthcare professional.',
+        conditions: ['Consult a doctor'],
+        recommendations: ['Please consult a healthcare professional', 'Seek immediate care for emergency symptoms'],
+        red_flags: [],
+        confidence: 0.0
+      };
     }
+
+    const combinedRiskLevel = determineCombinedRisk(triageResult, aiResult);
+
+    const aiAnalysis = {
+      risk_level: aiResult.risk_level || 'moderate',
+      summary: aiResult.summary || 'Analysis complete',
+      conditions: Array.isArray(aiResult.conditions) && aiResult.conditions.length > 0 ? aiResult.conditions : ['Consult a doctor'],
+      recommendations: Array.isArray(aiResult.recommendations) && aiResult.recommendations.length > 0 ? aiResult.recommendations : ['Please consult a healthcare professional'],
+      red_flags: Array.isArray(aiResult.red_flags) ? aiResult.red_flags : [],
+      confidence: typeof aiResult.confidence === 'number' ? aiResult.confidence : 0.5
+    };
 
     const combinedRiskLevel = determineCombinedRisk(triageResult, aiResult);
 
@@ -62,40 +97,25 @@ exports.analyze = async function(req, res, next) {
       user: req.user.id,
       symptoms: symptoms.trim(),
       triageResult,
-      aiAnalysis: {
-        summary: aiResult.summary,
-        possibleConditions: aiResult.possibleConditions || [],
-        recommendations: aiResult.recommendations || [],
-        urgentFlag: aiResult.urgentFlag || false,
-        specialistSuggestion: aiResult.specialistSuggestion || null,
-      },
+      aiAnalysis: aiAnalysis,
       combinedRiskLevel,
       files: allFiles,
       userContext,
       status: 'completed',
     });
 
-    const hasImages = processedFiles.images.length > 0;
-
     res.status(201).json({
       status: 'success',
       data: {
         id: analysis._id,
         triage: triageResult,
-        ai: {
-          summary: aiResult.summary,
-          possibleConditions: aiResult.possibleConditions,
-          recommendations: aiResult.recommendations,
-          urgentFlag: aiResult.urgentFlag,
-          specialistSuggestion: aiResult.specialistSuggestion,
-          note: hasImages ? 'Images are stored but not processed by AI. Text analysis only.' : null,
-        },
+        ai: aiAnalysis,
         combinedRiskLevel,
         files: {
           images: processedFiles.images,
           prescriptions: processedFiles.prescriptions,
         },
-        analyzedAt: analysis.createdAt,
+        analyzedAt: analysis.createdAt || new Date().toISOString(),
         disclaimer: 'This analysis is for informational purposes only and does not constitute medical advice. Always consult a healthcare professional.',
       },
     });

@@ -3,9 +3,9 @@ import api from './axios'
 export const authApi = {
   register: async (data) => {
     const response = await api.post('/auth/register', data)
-    const { token, data: userData } = response.data
-    if (token) {
-      localStorage.setItem('token', token)
+    const { accessToken, data: userData } = response.data
+    if (accessToken) {
+      localStorage.setItem('token', accessToken)
       localStorage.setItem('user', JSON.stringify(userData.user))
     }
     return response.data
@@ -13,9 +13,9 @@ export const authApi = {
 
   login: async (data) => {
     const response = await api.post('/auth/login', data)
-    const { token, data: userData } = response.data
-    if (token) {
-      localStorage.setItem('token', token)
+    const { accessToken, data: userData } = response.data
+    if (accessToken) {
+      localStorage.setItem('token', accessToken)
       localStorage.setItem('user', JSON.stringify(userData.user))
     }
     return response.data

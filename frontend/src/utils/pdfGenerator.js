@@ -6,6 +6,23 @@ export function generateAnalysisPDF(analysis) {
   const margin = 20
   let yPosition = margin
 
+  const formatDate = (dateValue) => {
+    if (!dateValue) return 'N/A'
+    try {
+      const date = new Date(dateValue)
+      if (isNaN(date.getTime())) return 'N/A'
+      return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return 'N/A'
+    }
+  }
+
   const addLine = () => {
     yPosition += 8
     if (yPosition > 270) {
@@ -32,6 +49,8 @@ export function generateAnalysisPDF(analysis) {
     })
   }
 
+  const displayDate = formatDate(analysis.analyzedAt || analysis.createdAt)
+
   doc.setFillColor(59, 130, 246)
   doc.rect(0, 0, pageWidth, 40, 'F')
 
@@ -48,7 +67,7 @@ export function generateAnalysisPDF(analysis) {
 
   doc.setTextColor(100, 100, 100)
   doc.setFontSize(9)
-  doc.text(`Generated on: ${new Date(analysis.analyzedAt).toLocaleString()}`, margin, yPosition)
+  doc.text(`Generated on: ${displayDate}`, margin, yPosition)
   yPosition += 5
   doc.text(`Report ID: ${analysis._id}`, margin, yPosition)
 
@@ -71,14 +90,14 @@ export function generateAnalysisPDF(analysis) {
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(12)
   doc.setFont('helvetica', 'bold')
-  doc.text(`Risk Level: ${analysis.combinedRiskLevel.toUpperCase()}`, margin + 5, yPosition + 8)
+  doc.text(`Risk Level: ${(analysis.combinedRiskLevel || 'N/A').toUpperCase()}`, margin + 5, yPosition + 8)
 
   yPosition += 25
 
   addText('PATIENT INFORMATION', 14, true, [59, 130, 246])
   addLine()
   addText(`Name: ${analysis.user?.name || 'Patient'}`, 11)
-  addText(`Analysis Date: ${new Date(analysis.analyzedAt).toLocaleString()}`, 11)
+  addText(`Analysis Date: ${displayDate}`, 11)
   addLine()
 
   addText('SYMPTOMS REPORTED', 14, true, [59, 130, 246])
@@ -108,15 +127,22 @@ export function generateAnalysisPDF(analysis) {
     addText('AI ANALYSIS', 14, true, [59, 130, 246])
     addLine()
 
+    if (analysis.ai.risk_level) {
+      doc.setTextColor(...riskColors[analysis.ai.risk_level] || [0, 0, 0])
+      addText(`AI Risk Level: ${analysis.ai.risk_level.toUpperCase()}`, 11, true)
+      doc.setTextColor(0, 0, 0)
+      addLine()
+    }
+
     if (analysis.ai.summary) {
       addText('Summary:', 11, true)
       addWrappedText(analysis.ai.summary, 11)
       addLine()
     }
 
-    if (analysis.ai.possibleConditions?.length > 0) {
+    if (analysis.ai.conditions?.length > 0) {
       addText('Possible Conditions:', 11, true)
-      analysis.ai.possibleConditions.forEach((condition) => {
+      analysis.ai.conditions.forEach((condition) => {
         doc.setTextColor(0, 0, 0)
         doc.text(`  - ${condition}`, margin + 5, yPosition)
         yPosition += 6
@@ -134,8 +160,19 @@ export function generateAnalysisPDF(analysis) {
       addLine()
     }
 
-    if (analysis.ai.specialistSuggestion) {
-      addText(`Suggested Specialist: ${analysis.ai.specialistSuggestion}`, 11, true)
+    if (analysis.ai.red_flags?.length > 0) {
+      doc.setTextColor(185, 28, 28)
+      addText('Red Flags:', 11, true)
+      doc.setTextColor(0, 0, 0)
+      analysis.ai.red_flags.forEach((flag) => {
+        doc.text(`  - ${flag}`, margin + 5, yPosition)
+        yPosition += 6
+      })
+      addLine()
+    }
+
+    if (typeof analysis.ai.confidence === 'number') {
+      addText(`AI Confidence: ${Math.round(analysis.ai.confidence * 100)}%`, 10)
       addLine()
     }
   }

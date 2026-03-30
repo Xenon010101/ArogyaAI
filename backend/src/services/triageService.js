@@ -1,47 +1,55 @@
 const { triage } = require('../utils/triage');
 
-class TriageService {
-  async analyzeSymptoms(symptoms) {
-    const result = triage(symptoms);
-    return result;
-  }
-
-  async analyzeHealthData(healthData) {
-    const symptomTexts = [];
-
-    if (healthData.symptoms && Array.isArray(healthData.symptoms)) {
-      symptomTexts.push(...healthData.symptoms);
-    }
-
-    if (healthData.description) {
-      symptomTexts.push(healthData.description);
-    }
-
-    if (healthData.chiefComplaint) {
-      symptomTexts.push(healthData.chiefComplaint);
-    }
-
-    const combinedText = symptomTexts.join(' ');
-
-    return triage(combinedText);
-  }
-
-  async preDiagnosisCheck(symptoms) {
-    const result = triage(symptoms);
-
-    if (result.isEmergency) {
-      return {
-        ...result,
-        canProceed: false,
-        reason: 'Emergency symptoms detected. Please seek immediate medical help.',
-      };
-    }
-
-    return {
-      ...result,
-      canProceed: true,
-    };
-  }
+function analyzeSymptoms(symptoms) {
+  const result = triage(symptoms);
+  return result;
 }
 
-module.exports = new TriageService();
+function analyzeHealthData(healthData) {
+  const symptomTexts = [];
+
+  if (healthData.symptoms && Array.isArray(healthData.symptoms)) {
+    symptomTexts = symptomTexts.concat(healthData.symptoms);
+  }
+
+  if (healthData.description) {
+    symptomTexts.push(healthData.description);
+  }
+
+  if (healthData.chiefComplaint) {
+    symptomTexts.push(healthData.chiefComplaint);
+  }
+
+  const combinedText = symptomTexts.join(' ');
+
+  return triage(combinedText);
+}
+
+function preDiagnosisCheck(symptoms) {
+  const result = triage(symptoms);
+
+  if (result.isEmergency) {
+    return {
+      isEmergency: result.isEmergency,
+      flags: result.flags,
+      severity: result.severity,
+      recommendation: result.recommendation,
+      canProceed: false,
+      reason: 'Emergency symptoms detected. Please seek immediate medical help.'
+    };
+  }
+
+  return {
+    isEmergency: result.isEmergency,
+    flags: result.flags,
+    severity: result.severity,
+    recommendation: result.recommendation,
+    canProceed: true
+  };
+}
+
+module.exports = {
+  analyzeSymptoms: analyzeSymptoms,
+  analyzeHealthData: analyzeHealthData,
+  preDiagnosisCheck: preDiagnosisCheck
+};

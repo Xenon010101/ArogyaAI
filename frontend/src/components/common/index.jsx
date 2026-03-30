@@ -153,17 +153,18 @@ export function Alert({ variant = 'info', children }) {
 
 export function RiskBadge({ level }) {
   const config = {
-    critical: { bg: 'bg-red-100', text: 'text-red-800', label: 'Critical' },
-    high: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'High' },
-    moderate: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Moderate' },
-    low: { bg: 'bg-green-100', text: 'text-green-800', label: 'Low' },
+    critical: { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200', label: 'Critical', icon: '🔴' },
+    high: { bg: 'bg-orange-100', text: 'text-orange-800', border: 'border-orange-200', label: 'High', icon: '🟠' },
+    moderate: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', label: 'Moderate', icon: '🟡' },
+    low: { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200', label: 'Low', icon: '🟢' },
   }
 
-  const { bg, text, label } = config[level] || config.low
+  const { bg, text, label, icon } = config[level] || config.moderate
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${bg} ${text}`}>
-      {label}
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border ${bg} ${text} ${config[level]?.border || ''}`}>
+      <span className="text-base">{icon}</span>
+      <span>{label}</span>
     </span>
   )
 }
