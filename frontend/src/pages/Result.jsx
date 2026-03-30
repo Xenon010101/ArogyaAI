@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { analyzeApi } from '../api/analyzeApi'
-import { AlertTriangle, Clock, User, FileText, Image, ArrowLeft } from 'lucide-react'
+import { downloadAnalysisPDF } from '../utils/pdfGenerator'
+import { AlertTriangle, Clock, User, FileText, Image, ArrowLeft, Download, Share2 } from 'lucide-react'
 import { Card, Button, LoadingSpinner, RiskBadge, Alert, ErrorState } from '../components/common'
 import toast from 'react-hot-toast'
 
@@ -9,6 +10,7 @@ export default function Result() {
   const { id } = useParams()
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState(null)
 
   const fetchAnalysis = useCallback(async () => {
@@ -28,6 +30,41 @@ export default function Result() {
   useEffect(() => {
     fetchAnalysis()
   }, [fetchAnalysis])
+
+  const handleDownloadPDF = async () => {
+    if (!analysis) return
+
+    setDownloading(true)
+    try {
+      const filename = downloadAnalysisPDF(analysis)
+      toast.success('PDF downloaded successfully!')
+    } catch (err) {
+      toast.error('Failed to generate PDF')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const handleShare = async () => {
+    if (!analysis) return
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'ArogyaAI Health Analysis',
+          text: `Risk Level: ${analysis.combinedRiskLevel}`,
+          url: window.location.href,
+        })
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          toast.error('Failed to share')
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(window.location.href)
+      toast.success('Link copied to clipboard!')
+    }
+  }
 
   if (loading) {
     return <LoadingSpinner size="lg" />
@@ -64,14 +101,37 @@ export default function Result() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Link to="/history">
-          <Button variant="outline" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link to="/history">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+          </Link>
+          <h1 className="text-2xl font-bold text-gray-900">Analysis Result</h1>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleShare}
+          >
+            <Share2 className="h-4 w-4 mr-2" />
+            Share
           </Button>
-        </Link>
-        <h1 className="text-2xl font-bold text-gray-900">Analysis Result</h1>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleDownloadPDF}
+            loading={downloading}
+            disabled={downloading}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download PDF
+          </Button>
+        </div>
       </div>
 
       {combinedRiskLevel === 'critical' && (

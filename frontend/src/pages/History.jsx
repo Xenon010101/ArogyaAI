@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { analyzeApi } from '../api/analyzeApi'
-import { Clock, Filter, Search, FileText, ChevronLeft, ChevronRight } from 'lucide-react'
+import { downloadAnalysisPDF } from '../utils/pdfGenerator'
+import { Clock, Filter, Search, FileText, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { Card, Button, LoadingSpinner, RiskBadge, ErrorState, EmptyState } from '../components/common'
 import toast from 'react-hot-toast'
 
@@ -9,6 +10,7 @@ export default function History() {
   const [analyses, setAnalyses] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [downloadingId, setDownloadingId] = useState(null)
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -64,6 +66,26 @@ export default function History() {
       setAnalyses(filtered)
     } else {
       fetchAnalyses()
+    }
+  }
+
+  const handleDownload = async (e, analysis) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    setDownloadingId(analysis._id)
+    try {
+      downloadAnalysisPDF({
+        ...analysis,
+        triage: { flags: [], recommendation: {} },
+        ai: {},
+        analyzedAt: analysis.createdAt,
+      })
+      toast.success('PDF downloaded!')
+    } catch (err) {
+      toast.error('Failed to generate PDF')
+    } finally {
+      setDownloadingId(null)
     }
   }
 
@@ -181,7 +203,17 @@ export default function History() {
                         )}
                       </div>
                     </div>
-                    <RiskBadge level={analysis.combinedRiskLevel} />
+                    <div className="flex items-center gap-3">
+                      <RiskBadge level={analysis.combinedRiskLevel} />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => handleDownload(e, analysis)}
+                        disabled={downloadingId === analysis._id}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </Link>
               ))}

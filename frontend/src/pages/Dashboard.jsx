@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { analyzeApi } from '../api/analyzeApi'
-import { Activity, Plus, Clock, AlertTriangle, TrendingUp, FileText } from 'lucide-react'
+import { downloadAnalysisPDF } from '../utils/pdfGenerator'
+import { Activity, Plus, Clock, AlertTriangle, TrendingUp, FileText, Download } from 'lucide-react'
 import { Card, Button, LoadingSpinner, RiskBadge, Alert, ErrorState, EmptyState } from '../components/common'
 import toast from 'react-hot-toast'
 
@@ -12,6 +13,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState({ total: 0, critical: 0, high: 0, moderate: 0, low: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [downloadingId, setDownloadingId] = useState(null)
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true)
@@ -43,6 +45,27 @@ export default function Dashboard() {
   useEffect(() => {
     fetchDashboardData()
   }, [fetchDashboardData])
+
+  const handleQuickDownload = async (e, analysis) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    setDownloadingId(analysis._id)
+    try {
+      downloadAnalysisPDF({
+        ...analysis,
+        user: { name: user?.name },
+        triage: { flags: [], recommendation: {} },
+        ai: {},
+        analyzedAt: analysis.createdAt,
+      })
+      toast.success('PDF downloaded!')
+    } catch (err) {
+      toast.error('Failed to generate PDF')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
 
   if (loading) {
     return <LoadingSpinner size="lg" />
@@ -168,7 +191,17 @@ export default function Dashboard() {
                     </p>
                   </div>
                 </div>
-                <RiskBadge level={analysis.combinedRiskLevel} />
+                <div className="flex items-center gap-3">
+                  <RiskBadge level={analysis.combinedRiskLevel} />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => handleQuickDownload(e, analysis)}
+                    loading={downloadingId === analysis._id}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </div>
               </Link>
             ))}
           </div>
