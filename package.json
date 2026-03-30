@@ -1,0 +1,13 @@
+{
+  "name": "arogyaai",
+  "version": "1.0.0",
+  "description": "AI-powered healthcare application",
+  "scripts": {
+    "backend": "node backend/server.js",
+    "dev": "nodemon backend/server.js",
+    "start": "node backend/server.js"
+  },
+  "keywords": ["healthcare", "ai", "mern"],
+  "author": "",
+  "license": "MIT"
+}
