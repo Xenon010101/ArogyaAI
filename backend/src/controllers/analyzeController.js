@@ -2,19 +2,7 @@ const Analysis = require('../../models/Analysis');
 const ApiError = require('../../utils/ApiError');
 const triageService = require('../../services/triageService');
 const aiService = require('../../services/aiService');
-
-async function processFiles(files) {
-  if (!files || files.length === 0) {
-    return [];
-  }
-
-  return files.map((file) => ({
-    fileName: file.originalname,
-    fileUrl: `/uploads/${file.originalname}`,
-    fileType: file.mimetype,
-    fileSize: file.size,
-  }));
-}
+const { processUploadedFiles } = require('../../services/fileService');
 
 function determineCombinedRisk(triageResult, aiResult) {
   if (triageResult.isEmergency || triageResult.severity === 'critical') {
@@ -57,7 +45,8 @@ exports.analyze = async (req, res, next) => {
 
     const triageResult = await triageService.analyzeSymptoms(symptoms);
 
-    const files = await processFiles(req.files);
+    const processedFiles = processUploadedFiles(req.files);
+    const allFiles = processedFiles.all;
 
     let aiResult;
     try {
@@ -81,7 +70,7 @@ exports.analyze = async (req, res, next) => {
         specialistSuggestion: aiResult.specialistSuggestion || null,
       },
       combinedRiskLevel,
-      files,
+      files: allFiles,
       userContext,
       status: 'completed',
     });
@@ -99,7 +88,10 @@ exports.analyze = async (req, res, next) => {
           specialistSuggestion: aiResult.specialistSuggestion,
         },
         combinedRiskLevel,
-        files,
+        files: {
+          images: processedFiles.images,
+          prescriptions: processedFiles.prescriptions,
+        },
         analyzedAt: analysis.createdAt,
         disclaimer: 'This analysis is for informational purposes only and does not constitute medical advice. Always consult a healthcare professional.',
       },
