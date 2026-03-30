@@ -117,13 +117,17 @@ export default function NewAnalysis() {
       prescriptions.forEach((rx) => data.append('prescriptions', rx))
 
       const response = await analyzeApi.analyze(data)
-      if (response.id) {
+      const analysisId = response.data?._id || response.id || response.data?.id
+      
+      if (analysisId) {
         toast.success('Analysis complete!')
-        navigate(`/result/${response.id}`)
+        navigate(`/result/${analysisId}`)
       } else {
-        throw new Error('Invalid response')
+        console.error('Invalid response:', response)
+        throw new Error('Invalid response from server')
       }
     } catch (error) {
+      console.error('Analysis error:', error)
       const message = error.response?.data?.message || error.message || 'Analysis failed. Please try again.'
       toast.error(message)
     } finally {

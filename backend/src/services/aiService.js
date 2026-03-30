@@ -3,40 +3,60 @@ const https = require('https');
 const GEMINI_API_VERSION = 'v1beta';
 const DEFAULT_MODEL = 'gemini-1.5-flash';
 
-function buildPrompt(symptoms, userContext) {
+function buildPrompt(symptoms, userContext, fileDescriptions) {
   userContext = userContext || {};
   
-  let context = '';
-  if (userContext.age) context += `Patient age: ${userContext.age}\n`;
-  if (userContext.gender) context += `Patient gender: ${userContext.gender}\n`;
+  let prompt = `You are ArogyaAI, an advanced medical AI assistant. Analyze the patient's health information comprehensively.
+
+PATIENT CONTEXT:
+`;
+  
+  if (userContext.age) prompt += `- Age: ${userContext.age}\n`;
+  if (userContext.gender) prompt += `- Gender: ${userContext.gender}\n`;
   if (userContext.medicalHistory && userContext.medicalHistory.length) {
-    context += `Medical history: ${userContext.medicalHistory.join(', ')}\n`;
+    prompt += `- Medical History: ${userContext.medicalHistory.join(', ')}\n`;
   }
 
-  return `You are ArogyaAI, a medical symptom analysis assistant.
+  prompt += `
+SYMPTOMS REPORTED:
+${symptoms || 'No text symptoms provided'}
 
-CONTEXT:
-${context}
+`;
+  
+  if (fileDescriptions && fileDescriptions.length > 0) {
+    prompt += `
+ADDITIONAL INFORMATION FROM UPLOADED FILES:
+${fileDescriptions.map((desc, i) => `File ${i + 1}: ${desc}`).join('\n')}
+`;
+  }
 
-SYMPTOMS:
-${symptoms}
+  prompt += `
 
-Respond ONLY with valid JSON (no markdown, no backticks):
+TASK:
+Analyze ALL information provided above and return a comprehensive clinical assessment in JSON format:
 {
   "risk_level": "low" | "moderate" | "high" | "critical",
-  "risk_explanation": "Brief explanation of the risk assessment",
-  "summary": "Brief analysis summary (under 200 chars)",
-  "possible_conditions": ["condition1", "condition2"],
-  "recommendations": ["recommendation1", "recommendation2"],
-  "red_flags": ["warning sign 1"],
-  "confidence_score": 0.85
+  "risk_explanation": "Detailed explanation of why this risk level was assigned based on symptoms, images, and documents",
+  "summary": "Comprehensive clinical summary combining all data sources (max 200 chars)",
+  "possible_conditions": ["condition1", "condition2", "condition3"],
+  "recommendations": ["actionable recommendation 1", "actionable recommendation 2", "actionable recommendation 3"],
+  "red_flags": ["warning sign 1" | null if none],
+  "confidence_score": 0.0-1.0,
+  "clinical_reasoning": "Explain how symptoms, uploaded images (if any), and documents led to your assessment",
+  "suggested_tests": ["suggested diagnostic test 1" | null if none]
 }
 
-Rules:
-- risk_level: "critical" (emergency), "high" (serious), "moderate" (concerning), "low" (minor)
-- confidence_score: 0.0 to 1.0
-- red_flags: empty array [] if none
-- Always include all fields with valid data`;
+CRITICAL RULES:
+- Risk level: "critical" (life-threatening), "high" (serious), "moderate" (concerning), "low" (minor)
+- ALWAYS analyze images for visible symptoms (rash, swelling, discoloration, wounds)
+- ALWAYS consider content from uploaded PDFs/documents
+- If image shows medical concern, reflect it in possible_conditions and risk_level
+- confidence_score: 0.0-1.0 (higher = more confident)
+- Provide at least 2 possible_conditions when symptoms are provided
+- red_flags: array of warning signs or empty array []
+- Include clinical_reasoning explaining how you reached your conclusion`;
+
+  return prompt;
 }
 
 function makeRequest(url, body) {
@@ -64,7 +84,7 @@ function makeRequest(url, body) {
     });
 
     req.on('error', reject);
-    req.setTimeout(90000, function() { req.destroy(); reject(new Error('Request timeout')); });
+    req.setTimeout(120000, function() { req.destroy(); reject(new Error('Request timeout')); });
     
     if (body) req.write(JSON.stringify(body));
     req.end();
@@ -93,20 +113,22 @@ function parseJson(text) {
 function getSafeResponse() {
   return {
     risk_level: 'moderate',
-    risk_explanation: 'Analysis completed with standard assessment. Please consult a healthcare provider for detailed evaluation.',
-    summary: 'Based on the symptoms provided, a moderate risk level is assigned. Professional medical consultation is recommended.',
+    risk_explanation: 'Analysis completed based on available information. Please consult a healthcare provider for detailed evaluation.',
+    summary: 'Based on the information provided, a moderate risk level is assigned. Professional medical consultation is recommended.',
     possible_conditions: ['Consult a healthcare professional'],
     recommendations: [
       'Please consult a doctor for proper diagnosis',
-      'Monitor symptoms and seek care if they worsen',
-      'Keep track of any changes in your condition'
+      'Monitor symptoms and note any changes',
+      'Seek immediate care if symptoms worsen'
     ],
     red_flags: [],
-    confidence_score: 0.5
+    confidence_score: 0.5,
+    clinical_reasoning: 'A comprehensive analysis requires professional medical examination. This AI assessment is for informational purposes only.',
+    suggested_tests: null
   };
 }
 
-async function analyzeWithGemini(symptoms, userContext, imageData, attempt) {
+async function analyzeWithGemini(prompt, imageData, attempt) {
   attempt = attempt || 1;
   
   const apiKey = process.env.GEMINI_API_KEY;
@@ -115,15 +137,14 @@ async function analyzeWithGemini(symptoms, userContext, imageData, attempt) {
     return getSafeResponse();
   }
 
-  const model = imageData ? 'gemini-1.5-flash' : 'gemini-1.5-flash';
+  const model = 'gemini-1.5-flash';
   const url = `https://generativelanguage.googleapis.com/${GEMINI_API_VERSION}/models/${model}:generateContent?key=${apiKey}`;
 
-  const prompt = buildPrompt(symptoms, userContext);
-  
+  console.log(`[Gemini] Attempt ${attempt}: ${imageData ? 'Multimodal (text+image)' : 'Text-only'}`);
+
   let contents = [];
   
-  if (imageData) {
-    console.log(`[Gemini] Attempt ${attempt}: Using image + text input`);
+  if (imageData && attempt === 1) {
     contents = [{
       role: 'user',
       parts: [
@@ -137,7 +158,6 @@ async function analyzeWithGemini(symptoms, userContext, imageData, attempt) {
       ]
     }];
   } else {
-    console.log(`[Gemini] Attempt ${attempt}: Using text-only input`);
     contents = [{
       role: 'user',
       parts: [{ text: prompt }]
@@ -147,37 +167,44 @@ async function analyzeWithGemini(symptoms, userContext, imageData, attempt) {
   const body = {
     contents: contents,
     generationConfig: {
-      temperature: 0.3,
-      maxOutputTokens: 2048,
-      topP: 0.8,
-      topK: 40
+      temperature: 0.4,
+      maxOutputTokens: 2500,
+      topP: 0.85,
+      topK: 50
     }
   };
 
   try {
-    console.log(`[Gemini] Sending request to ${model}...`);
     const response = await makeRequest(url, body);
 
     if (response.status !== 200) {
-      const errMsg = response.data?.error?.message || JSON.stringify(response.data);
-      console.error(`[Gemini] API Error ${response.status}:`, errMsg);
+      const errData = response.data;
+      let errMsg = 'Unknown error';
+      
+      if (errData && typeof errData === 'object') {
+        errMsg = errData.error?.message || JSON.stringify(errData);
+      } else if (typeof errData === 'string') {
+        errMsg = errData;
+      }
+      
+      console.error(`[Gemini] API Error ${response.status}:`, errMsg.substring(0, 300));
 
       const errLower = errMsg.toLowerCase();
-      
-      if (imageData && (
+      const isImageError = imageData && (
         errLower.includes('image') || 
         errLower.includes('vision') || 
         errLower.includes('unsupported') ||
         errLower.includes('does not support') ||
-        errLower.includes('inline data')
-      )) {
-        console.warn('[Gemini] Image not supported, retrying without image...');
-        return analyzeWithGemini(symptoms, userContext, null, attempt + 1);
+        errLower.includes('inline')
+      );
+      
+      if (isImageError) {
+        console.warn('[Gemini] Image not supported, using text-only analysis...');
+        return analyzeWithGemini(prompt, null, 2);
       }
 
       if (attempt < 2) {
-        console.warn('[Gemini] Retrying request...');
-        return analyzeWithGemini(symptoms, userContext, imageData, attempt + 1);
+        return analyzeWithGemini(prompt, imageData, attempt + 1);
       }
 
       return getSafeResponse();
@@ -186,9 +213,9 @@ async function analyzeWithGemini(symptoms, userContext, imageData, attempt) {
     const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!text) {
-      console.error('[Gemini] Empty response received');
+      console.error('[Gemini] Empty response');
       if (attempt < 2) {
-        return analyzeWithGemini(symptoms, userContext, imageData, attempt + 1);
+        return analyzeWithGemini(prompt, imageData, attempt + 1);
       }
       return getSafeResponse();
     }
@@ -196,14 +223,14 @@ async function analyzeWithGemini(symptoms, userContext, imageData, attempt) {
     const parsed = parseJson(text);
 
     if (!parsed || !parsed.risk_level) {
-      console.error('[Gemini] Invalid JSON response:', text.substring(0, 200));
+      console.error('[Gemini] Invalid JSON, retrying...');
       if (attempt < 2) {
-        return analyzeWithGemini(symptoms, userContext, imageData, attempt + 1);
+        return analyzeWithGemini(prompt, imageData, attempt + 1);
       }
       return getSafeResponse();
     }
 
-    console.log('[Gemini] Successfully parsed response');
+    console.log('[Gemini] Analysis complete');
 
     const riskLevel = String(parsed.risk_level).toLowerCase();
     const normalizedRisk = ['critical', 'emergency'].includes(riskLevel) ? 'critical' :
@@ -212,7 +239,7 @@ async function analyzeWithGemini(symptoms, userContext, imageData, attempt) {
 
     return {
       risk_level: normalizedRisk,
-      risk_explanation: String(parsed.risk_explanation || parsed.summary || 'Analysis complete').substring(0, 300),
+      risk_explanation: String(parsed.risk_explanation || parsed.summary || 'Analysis complete').substring(0, 400),
       summary: String(parsed.summary || parsed.risk_explanation || 'Analysis complete').substring(0, 200),
       possible_conditions: Array.isArray(parsed.possible_conditions) && parsed.possible_conditions.length > 0 
         ? parsed.possible_conditions.slice(0, 5) 
@@ -220,57 +247,66 @@ async function analyzeWithGemini(symptoms, userContext, imageData, attempt) {
       recommendations: Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0 
         ? parsed.recommendations.slice(0, 5) 
         : ['Please consult a healthcare professional'],
-      red_flags: Array.isArray(parsed.red_flags) ? parsed.red_flags.slice(0, 5) : [],
+      red_flags: Array.isArray(parsed.red_flags) && parsed.red_flags.length > 0 ? parsed.red_flags.slice(0, 5) : [],
       confidence_score: typeof parsed.confidence_score === 'number' 
         ? Math.max(0, Math.min(1, parsed.confidence_score)) 
-        : 0.7
+        : 0.6,
+      clinical_reasoning: parsed.clinical_reasoning || parsed.summary || 'Comprehensive analysis completed.',
+      suggested_tests: Array.isArray(parsed.suggested_tests) ? parsed.suggested_tests : null
     };
 
   } catch (error) {
-    console.error(`[Gemini] Error (attempt ${attempt}):`, error.message);
-
-    const errLower = error.message.toLowerCase();
-    if (imageData && (
-      errLower.includes('image') || 
-      errLower.includes('vision') || 
-      errLower.includes('unsupported') ||
-      errLower.includes('does not support')
-    )) {
-      console.warn('[Gemini] Image error, falling back to text-only...');
-      return analyzeWithGemini(symptoms, userContext, null, attempt + 1);
-    }
-
+    console.error(`[Gemini] Error:`, error.message);
+    
     if (attempt < 2) {
-      return analyzeWithGemini(symptoms, userContext, imageData, attempt + 1);
+      return analyzeWithGemini(prompt, imageData, attempt + 1);
     }
 
     return getSafeResponse();
   }
 }
 
-async function analyzeSymptoms(symptoms, userContext, imageBase64) {
+async function analyzeSymptoms(symptoms, userContext, imageBase64, uploadedFiles) {
   if (!symptoms || typeof symptoms !== 'string' || symptoms.trim().length < 3) {
-    return {
-      risk_level: 'moderate',
-      risk_explanation: 'Insufficient symptom information provided.',
-      summary: 'Please provide more detailed symptoms for accurate analysis.',
-      possible_conditions: [],
-      recommendations: ['Please describe your symptoms in detail'],
-      red_flags: [],
-      confidence_score: 0.0
-    };
+    if (!imageBase64 && (!uploadedFiles || uploadedFiles.length === 0)) {
+      return {
+        risk_level: 'moderate',
+        risk_explanation: 'Insufficient information provided for analysis.',
+        summary: 'Please provide symptoms text or upload images/documents for analysis.',
+        possible_conditions: [],
+        recommendations: ['Please describe your symptoms or upload relevant medical documents'],
+        red_flags: [],
+        confidence_score: 0.0,
+        clinical_reasoning: 'Not enough information to provide a reliable assessment.',
+        suggested_tests: null
+      };
+    }
   }
 
-  symptoms = symptoms.trim();
+  symptoms = symptoms ? symptoms.trim() : '';
   if (symptoms.length > 2000) {
     symptoms = symptoms.substring(0, 2000);
   }
 
-  console.log('[Gemini] Starting analysis...');
-  console.log('[Gemini] Symptoms length:', symptoms.length);
-  console.log('[Gemini] Has image:', !!imageBase64);
+  let fileDescriptions = [];
+  if (uploadedFiles && uploadedFiles.length > 0) {
+    uploadedFiles.forEach(file => {
+      if (file.category === 'prescription') {
+        fileDescriptions.push(`Prescription/Document: ${file.originalName || file.fileName}`);
+      } else if (file.category === 'image' && file !== imageBase64) {
+        fileDescriptions.push(`Image provided: ${file.originalName || file.fileName}`);
+      }
+    });
+  }
 
-  return await analyzeWithGemini(symptoms, userContext || {}, imageBase64, 1);
+  const prompt = buildPrompt(symptoms, userContext, fileDescriptions);
+
+  console.log('[Gemini] Starting comprehensive analysis...');
+  console.log('[Gemini] Text length:', symptoms.length);
+  console.log('[Gemini] Has image:', !!imageBase64);
+  console.log('[Gemini] Files:', fileDescriptions.length);
+
+  return await analyzeWithGemini(prompt, imageBase64, 1);
 }
 
 module.exports = {

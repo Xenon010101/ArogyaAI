@@ -3,19 +3,23 @@ const ApiError = require('../utils/ApiError');
 const triageService = require('../services/triageService');
 const aiService = require('../services/aiService');
 const { processUploadedFiles } = require('../services/fileService');
+const clinicalLogic = require('../services/clinicalLogic');
 
-function determineCombinedRisk(triageResult, aiResult) {
+function determineCombinedRisk(triageResult, aiResult, symptoms) {
   if (!triageResult || !aiResult) return 'moderate';
   
-  if (triageResult.isEmergency || triageResult.severity === 'critical' || aiResult.risk_level === 'critical') {
+  const symptomsAnalysis = clinicalLogic.analyzeSymptoms(symptoms || '', triageResult);
+  
+  if (triageResult.isEmergency || triageResult.severity === 'critical' || 
+      aiResult.risk_level === 'critical' || symptomsAnalysis.riskLevel === 'critical') {
     return 'critical';
   }
 
-  if (triageResult.severity === 'high' || aiResult.risk_level === 'high') {
+  if (triageResult.severity === 'high' || aiResult.risk_level === 'high' || symptomsAnalysis.riskLevel === 'high') {
     return 'high';
   }
 
-  if (triageResult.severity === 'moderate' || aiResult.risk_level === 'moderate') {
+  if (triageResult.severity === 'moderate' || aiResult.risk_level === 'moderate' || symptomsAnalysis.riskLevel === 'moderate') {
     return 'moderate';
   }
 
@@ -90,36 +94,64 @@ exports.analyze = async function(req, res, next) {
               data: base64Data,
               mimeType: firstImage.mimetype || 'image/jpeg'
             };
-            console.log('[Analysis] Image prepared for AI:', firstImage.originalName);
+            console.log('[Analysis] Image prepared for AI:', firstImage.originalName, '- Size:', base64Data.length);
           }
         }
       } catch (imgError) {
         console.warn('[Analysis] Could not process image:', imgError.message);
       }
+    } else {
+      console.log('[Analysis] No images to process');
     }
+
+    const symptomsAnalysis = clinicalLogic.analyzeSymptoms(symptoms || '', triageResult);
+    console.log('[Analysis] Symptoms analyzed:', symptomsAnalysis);
 
     let aiResult;
     try {
-      aiResult = await aiService.analyzeSymptoms(symptoms, userContext, imageBase64);
+      aiResult = await aiService.analyzeSymptoms(symptoms, userContext, imageBase64, allFiles);
     } catch (aiError) {
       console.error('[Analysis] AI failed:', aiError.message);
       aiResult = aiService.getSafeResponse();
     }
 
-    const combinedRiskLevel = determineCombinedRisk(triageResult, aiResult);
+    const combinedRiskLevel = determineCombinedRisk(triageResult, aiResult, symptoms);
+    
+    const finalConditions = aiResult.possible_conditions && aiResult.possible_conditions.length > 0 && aiResult.possible_conditions[0] !== 'Consult a doctor'
+      ? aiResult.possible_conditions
+      : symptomsAnalysis.conditions.length > 0 
+        ? symptomsAnalysis.conditions 
+        : ['Consult a healthcare professional'];
+    
+    const finalSummary = aiResult.summary && aiResult.summary !== 'Analysis complete'
+      ? aiResult.summary 
+      : clinicalLogic.generateSummary(combinedRiskLevel, finalConditions, symptoms);
+    
+    const finalClinicalReasoning = aiResult.clinical_reasoning
+      ? aiResult.clinical_reasoning
+      : clinicalLogic.generateClinicalReasoning(symptoms, symptomsAnalysis);
+    
+    const finalRiskExplanation = aiResult.risk_explanation
+      ? aiResult.risk_explanation
+      : clinicalLogic.generateRiskExplanation(combinedRiskLevel, symptomsAnalysis);
+    
+    const aiConfidence = aiResult.confidence_score || null;
+    const finalConfidence = clinicalLogic.calculateConfidence(combinedRiskLevel, symptomsAnalysis, aiConfidence);
 
     const aiAnalysis = {
-      risk_level: aiResult.risk_level || 'moderate',
-      risk_explanation: aiResult.risk_explanation || '',
-      summary: aiResult.summary || 'Analysis complete',
-      conditions: Array.isArray(aiResult.possible_conditions) && aiResult.possible_conditions.length > 0 
-        ? aiResult.possible_conditions 
-        : ['Consult a doctor'],
-      recommendations: Array.isArray(aiResult.recommendations) && aiResult.recommendations.length > 0 
-        ? aiResult.recommendations 
-        : ['Please consult a healthcare professional'],
-      red_flags: Array.isArray(aiResult.red_flags) ? aiResult.red_flags : [],
-      confidence: typeof aiResult.confidence_score === 'number' ? aiResult.confidence_score : 0.5
+      risk_level: combinedRiskLevel,
+      risk_explanation: finalRiskExplanation,
+      summary: finalSummary,
+      clinical_reasoning: finalClinicalReasoning,
+      suggested_tests: aiResult.suggested_tests || null,
+      conditions: finalConditions,
+      recommendations: aiResult.recommendations && aiResult.recommendations.length > 0
+        ? aiResult.recommendations
+        : clinicalLogic.generateRecommendations(combinedRiskLevel, finalConditions),
+      red_flags: clinicalLogic.generateRedFlags(combinedRiskLevel, symptomsAnalysis),
+      confidence: finalConfidence,
+      detected_symptoms: symptomsAnalysis.detectedSymptoms,
+      recommended_specialist: clinicalLogic.recommendSpecialist(symptoms, triageResult, combinedRiskLevel)
     };
 
     const analysis = await Analysis.create({

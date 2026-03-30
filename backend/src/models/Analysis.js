@@ -22,10 +22,15 @@ const analysisSchema = new mongoose.Schema(
     aiAnalysis: {
       risk_level: String,
       summary: String,
+      risk_explanation: String,
+      clinical_reasoning: String,
+      suggested_tests: [String],
       conditions: [String],
       recommendations: [String],
       red_flags: [String],
       confidence: Number,
+      detected_symptoms: [String],
+      recommended_specialist: String,
     },
     combinedRiskLevel: {
       type: String,

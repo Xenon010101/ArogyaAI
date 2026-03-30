@@ -204,10 +204,9 @@ export default function Result() {
   const ai = aiAnalysis
   const displayDate = formatDate(analyzedAt || createdAt)
   const riskLevel = combinedRiskLevel || 'moderate'
-  const nextSteps = nextStepsGuidance[riskLevel] || nextStepsGuidance.moderate
-  const recommendedSpecialist = triage?.flags?.[0]?.type 
+  const recommendedSpecialist = ai?.recommended_specialist || (triage?.flags?.[0]?.type 
     ? specialistMapping[triage.flags[0].type] || specialistMapping.default 
-    : specialistMapping.default
+    : specialistMapping.default)
   
   const symptomsArray = symptoms?.split(/[.,;]/).filter(s => s.trim()).map(s => s.trim()) || []
 
@@ -356,19 +355,62 @@ export default function Result() {
             )}
 
             {/* Clinical Reasoning Card */}
-            {ai?.summary && (
-              <Card>
+            {(ai?.clinical_reasoning || ai?.summary || ai?.risk_explanation) && (
+              <Card className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                    <Stethoscope className="h-6 w-6 text-purple-600" />
+                  <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/30">
+                    <Brain className="h-6 w-6 text-white" />
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Clinical Analysis</h2>
-                    <p className="text-xs text-gray-500">AI-generated medical reasoning</p>
+                    <p className="text-xs text-purple-600">Comprehensive assessment based on all inputs</p>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-gray-700 leading-relaxed">{ai.summary}</p>
+                
+                {ai?.risk_explanation && (
+                  <div className="bg-white rounded-xl p-4 mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Risk Assessment</h3>
+                    <p className="text-gray-700 leading-relaxed">{ai.risk_explanation}</p>
+                  </div>
+                )}
+                
+                {ai?.clinical_reasoning && (
+                  <div className="bg-white rounded-xl p-4 mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Clinical Reasoning</h3>
+                    <p className="text-gray-700 leading-relaxed">{ai.clinical_reasoning}</p>
+                  </div>
+                )}
+                
+                {ai?.summary && (
+                  <div className="bg-white rounded-xl p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Summary</h3>
+                    <p className="text-gray-700 leading-relaxed">{ai.summary}</p>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {/* Suggested Tests Card */}
+            {ai?.suggested_tests && ai.suggested_tests.length > 0 && (
+              <Card className="bg-gradient-to-br from-cyan-50 to-blue-50 border border-cyan-100">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-cyan-500 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/30">
+                    <Activity className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">Suggested Diagnostic Tests</h2>
+                    <p className="text-xs text-cyan-600">Recommended tests based on assessment</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {ai.suggested_tests.map((test, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg">
+                      <div className="w-6 h-6 bg-cyan-100 rounded-full flex items-center justify-center text-xs font-bold text-cyan-600">
+                        {i + 1}
+                      </div>
+                      <span className="text-gray-700">{test}</span>
+                    </div>
+                  ))}
                 </div>
               </Card>
             )}
@@ -396,68 +438,6 @@ export default function Result() {
               </Card>
             )}
 
-            {/* Recommendations Card */}
-            {ai?.recommendations?.length > 0 && (
-              <Card>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">Recommendations</h2>
-                    <p className="text-xs text-gray-500">{ai.recommendations.length} suggestions</p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {ai.recommendations.map((rec, i) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-                        <CheckCircle className="h-4 w-4 text-white" />
-                      </div>
-                      <p className="text-gray-700">{rec}</p>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            )}
-
-            {/* Next Steps Card */}
-            <Card className={`border-t-4 ${
-              riskLevel === 'critical' ? 'border-t-red-500 bg-red-50/50' :
-              riskLevel === 'high' ? 'border-t-orange-500 bg-orange-50/50' :
-              riskLevel === 'moderate' ? 'border-t-yellow-500 bg-yellow-50/50' : 'border-t-green-500 bg-green-50/50'
-            }`}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  riskLevel === 'critical' ? 'bg-red-100' :
-                  riskLevel === 'high' ? 'bg-orange-100' :
-                  riskLevel === 'moderate' ? 'bg-yellow-100' : 'bg-green-100'
-                }`}>
-                  {(() => {
-                    const Icon = nextSteps.icon
-                    return <Icon className={`h-6 w-6 ${
-                      riskLevel === 'critical' ? 'text-red-600' :
-                      riskLevel === 'high' ? 'text-orange-600' :
-                      riskLevel === 'moderate' ? 'text-yellow-600' : 'text-green-600'
-                    }`} />
-                  })()}
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">{nextSteps.title}</h2>
-                  <p className="text-xs text-gray-500">What you should do next</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {nextSteps.actions.map((action, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold text-gray-600">
-                      {i + 1}
-                    </div>
-                    <p className="text-gray-700">{action}</p>
-                  </div>
-                ))}
-              </div>
-            </Card>
           </div>
 
           {/* Right Column - Sidebar */}
@@ -587,20 +567,6 @@ export default function Result() {
               </div>
             </Card>
 
-            {/* Disclaimer */}
-            <Card className="bg-amber-50 border-amber-200">
-              <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-amber-900 text-sm">Medical Disclaimer</p>
-                  <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                    This analysis is AI-generated and for informational purposes only. It does not 
-                    constitute medical advice, diagnosis, or treatment. Always consult a qualified 
-                    healthcare professional for medical decisions.
-                  </p>
-                </div>
-              </div>
-            </Card>
           </div>
         </div>
       </div>
