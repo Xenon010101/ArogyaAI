@@ -18,6 +18,9 @@ module.exports = {
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
   },
+  openrouter: {
+    apiKey: process.env.OPENROUTER_API_KEY,
+  },
   smtp: {
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT, 10),
