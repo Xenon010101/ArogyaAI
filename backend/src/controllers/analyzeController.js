@@ -95,14 +95,19 @@ exports.analyze = async function(req, res, next) {
 
     let extractedPrescriptionText = '';
     let prescriptionExtracted = false;
+    let prescriptionImageBased = false;
     
     if (processedFiles.prescriptions?.length > 0) {
       try {
         const prescriptionData = await processPrescriptionsForAnalysis(processedFiles.prescriptions);
         extractedPrescriptionText = prescriptionData.combinedText || '';
         prescriptionExtracted = extractedPrescriptionText.length > 0;
+        prescriptionImageBased = prescriptionData.hasImageBasedPDF || false;
+        
         if (prescriptionExtracted) {
           console.log('[Analysis] Prescription text extracted:', extractedPrescriptionText.substring(0, 200) + '...');
+        } else if (prescriptionImageBased) {
+          console.log('[Analysis] Prescription is image-based (scanned PDF or image)');
         } else {
           console.log('[Analysis] No text extracted from prescriptions');
         }
@@ -257,6 +262,7 @@ exports.analyze = async function(req, res, next) {
       imageAnalysisFailed: imageAnalysisFailed,
       imageProcessed: imageProcessed,
       prescriptionExtracted: prescriptionExtracted,
+      prescriptionImageBased: prescriptionImageBased,
       extractedPrescriptionText: prescriptionExtracted ? extractedPrescriptionText.substring(0, 500) : null,
     };
 

@@ -296,6 +296,20 @@ export default function Result() {
           </div>
         )}
 
+        {/* Prescription Image-Based Warning */}
+        {analysis.prescriptionImageBased && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+            <FileText className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-blue-900">Document Uploaded (Scanned/Image PDF)</p>
+              <p className="text-sm text-blue-700 mt-1">
+                Your prescription document appears to be a scanned PDF or image. Text could not be extracted for analysis. 
+                The doctor reviewing this report may need to examine the original document.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Main Analysis */}
@@ -482,13 +496,11 @@ export default function Result() {
                   riskLevel === 'high' ? 'bg-orange-100' :
                   riskLevel === 'moderate' ? 'bg-yellow-100' : 'bg-green-100'
                 }`}>
-                  {nextStepsGuidance[riskLevel]?.icon && (
-                    <nextStepsGuidance[riskLevel].icon className={`h-6 w-6 ${
-                      riskLevel === 'critical' ? 'text-red-600' :
-                      riskLevel === 'high' ? 'text-orange-600' :
-                      riskLevel === 'moderate' ? 'text-yellow-600' : 'text-green-600'
-                    }`} />
-                  )}
+                  <AlertCircle className={`h-6 w-6 ${
+                    riskLevel === 'critical' ? 'text-red-600' :
+                    riskLevel === 'high' ? 'text-orange-600' :
+                    riskLevel === 'moderate' ? 'text-yellow-600' : 'text-green-600'
+                  }`} />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-gray-900">{nextStepsGuidance[riskLevel]?.title || 'Next Steps'}</h2>

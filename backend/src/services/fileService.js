@@ -24,7 +24,11 @@ async function extractTextFromPDF(filePath) {
       return data.text.trim();
     }
     
-    console.warn('[FileService] PDF appears to be empty or image-based');
+    if (data && data.numpages > 0) {
+      console.log('[FileService] PDF has', data.numpages, 'pages but no extractable text - likely image-based (scanned)');
+    } else {
+      console.warn('[FileService] PDF appears to be empty');
+    }
     return null;
   } catch (error) {
     console.error('[FileService] PDF extraction error:', error.message);
@@ -98,18 +102,34 @@ async function extractTextFromPrescription(filePath) {
 
 async function processPrescriptionsForAnalysis(prescriptionFiles) {
   if (!prescriptionFiles || prescriptionFiles.length === 0) {
-    return { extractedTexts: [], combinedText: '' };
+    return { extractedTexts: [], combinedText: '', hasImageBasedPDF: false };
   }
 
   const extractedTexts = [];
+  let hasImageBasedPDF = false;
 
   for (const file of prescriptionFiles) {
     console.log('[FileService] Processing prescription:', file.originalName);
+    const ext = path.extname(file.path || '').toLowerCase();
+    
+    if (['.jpg', '.jpeg', '.png', '.gif'].includes(ext)) {
+      hasImageBasedPDF = true;
+      console.log('[FileService] Image prescription detected:', file.originalName);
+    }
+    
     const text = await extractTextFromPrescription(file.path);
     if (text) {
       extractedTexts.push({
         fileName: file.originalName,
-        text: text
+        text: text,
+        isImageBased: false
+      });
+    } else if (ext === '.pdf') {
+      hasImageBasedPDF = true;
+      extractedTexts.push({
+        fileName: file.originalName,
+        text: '[Document uploaded - text extraction not available for scanned PDF]',
+        isImageBased: true
       });
     }
   }
@@ -119,8 +139,9 @@ async function processPrescriptionsForAnalysis(prescriptionFiles) {
   ).join('\n\n');
 
   console.log('[FileService] Total extracted text length:', combinedText.length);
+  console.log('[FileService] Has image-based content:', hasImageBasedPDF);
 
-  return { extractedTexts, combinedText };
+  return { extractedTexts, combinedText, hasImageBasedPDF };
 }
 
 function deleteFile(fileUrl) {
