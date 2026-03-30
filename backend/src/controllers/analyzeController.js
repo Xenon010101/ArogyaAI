@@ -32,15 +32,15 @@ function buildUserContext(body) {
   if (body.medicalHistory) {
     context.medicalHistory = Array.isArray(body.medicalHistory)
       ? body.medicalHistory
-      : body.medicalHistory.split(',').map((h) => h.trim());
+      : body.medicalHistory.split(',').map(function(h) { return h.trim(); });
   }
 
   return context;
 }
 
-exports.analyze = async (req, res, next) => {
+exports.analyze = async function(req, res, next) {
   try {
-    const { symptoms } = req.body;
+    const symptoms = req.body.symptoms;
     const userContext = buildUserContext(req.body);
 
     const triageResult = await triageService.analyzeSymptoms(symptoms);
@@ -75,6 +75,8 @@ exports.analyze = async (req, res, next) => {
       status: 'completed',
     });
 
+    const hasImages = processedFiles.images.length > 0;
+
     res.status(201).json({
       status: 'success',
       data: {
@@ -86,6 +88,7 @@ exports.analyze = async (req, res, next) => {
           recommendations: aiResult.recommendations,
           urgentFlag: aiResult.urgentFlag,
           specialistSuggestion: aiResult.specialistSuggestion,
+          note: hasImages ? 'Images are stored but not processed by AI. Text analysis only.' : null,
         },
         combinedRiskLevel,
         files: {
@@ -101,7 +104,7 @@ exports.analyze = async (req, res, next) => {
   }
 };
 
-exports.getAnalysis = async (req, res, next) => {
+exports.getAnalysis = async function(req, res, next) {
   try {
     const analysis = await Analysis.findOne({
       _id: req.params.id,
@@ -114,14 +117,14 @@ exports.getAnalysis = async (req, res, next) => {
 
     res.status(200).json({
       status: 'success',
-      data: { analysis },
+      data: { analysis: analysis },
     });
   } catch (error) {
     next(error);
   }
 };
 
-exports.getMyAnalyses = async (req, res, next) => {
+exports.getMyAnalyses = async function(req, res, next) {
   try {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
@@ -149,19 +152,19 @@ exports.getMyAnalyses = async (req, res, next) => {
     res.status(200).json({
       status: 'success',
       results: analyses.length,
-      total,
+      total: total,
       currentPage: page,
       totalPages: Math.ceil(total / limit),
-      data: { analyses },
+      data: { analyses: analyses },
     });
   } catch (error) {
     next(error);
   }
 };
 
-exports.preCheck = async (req, res, next) => {
+exports.preCheck = async function(req, res, next) {
   try {
-    const { symptoms } = req.body;
+    const symptoms = req.body.symptoms;
     const triageResult = await triageService.preDiagnosisCheck(symptoms);
 
     res.status(200).json({
