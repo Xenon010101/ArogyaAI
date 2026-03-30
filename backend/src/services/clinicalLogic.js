@@ -34,6 +34,43 @@ const symptomConditionMapping = {
   stress: ['Stress', 'Anxiety', 'Depression'],
   insomnia: ['Sleep Disorder', 'Stress', 'Depression'],
   loss_of_appetite: ['Digestive Issue', 'Infection', 'Depression'],
+  diabetes: ['Diabetes', 'Blood Sugar Issues', 'Metabolic Disorder'],
+  hypertension: ['High Blood Pressure', 'Hypertension', 'Cardiovascular Risk'],
+  thyroid: ['Thyroid Disorder', 'Hypothyroidism', 'Hyperthyroidism'],
+};
+
+const prescriptionConditionMapping = {
+  metformin: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar Management'],
+  insulin: ['Diabetes', 'Type 1 Diabetes', 'Blood Sugar Control'],
+  amlodipine: ['Hypertension', 'High Blood Pressure', 'Cardiac Condition'],
+  atenolol: ['Hypertension', 'Heart Condition', 'Arrhythmia'],
+  lisinopril: ['Hypertension', 'Heart Failure', 'Kidney Protection'],
+  omeprazole: ['Gastritis', 'GERD', 'Acid Reflux'],
+  pantoprazole: ['Gastritis', 'Peptic Ulcer', 'Acid Reflux'],
+  levothyroxine: ['Hypothyroidism', 'Thyroid Disorder', 'Metabolic Issue'],
+  atorvastatin: ['High Cholesterol', 'Cardiovascular Disease', 'Hyperlipidemia'],
+  rosuvastatin: ['High Cholesterol', 'Cardiovascular Risk', 'Hyperlipidemia'],
+  amoxicillin: ['Bacterial Infection', 'Respiratory Infection', 'UTI'],
+  azithromycin: ['Bacterial Infection', 'Respiratory Infection', 'STI'],
+  paracetamol: ['Pain', 'Fever', 'General Discomfort'],
+  acetaminophen: ['Pain', 'Fever', 'General Discomfort'],
+  ibuprofen: ['Inflammation', 'Pain', 'Fever'],
+  aspirin: ['Pain', 'Fever', 'Cardiovascular Prevention'],
+  diclofenac: ['Inflammation', 'Pain', 'Arthritis'],
+  naproxen: ['Inflammation', 'Pain', 'Arthritis'],
+  salbutamol: ['Asthma', 'Bronchospasm', 'Breathing Difficulty'],
+  cetirizine: ['Allergies', 'Allergic Rhinitis', 'Histamine Reaction'],
+  loratadine: ['Allergies', 'Allergic Rhinitis', 'Histamine Reaction'],
+  ranitidine: ['Acid Reflux', 'GERD', 'Stomach Acid'],
+  famotidine: ['Acid Reflux', 'GERD', 'Stomach Acid'],
+  domperidone: ['Nausea', 'Gastritis', 'Digestive Issues'],
+  ondansetron: ['Nausea', 'Vomiting', 'Post-operative Nausea'],
+  tramadol: ['Severe Pain', 'Chronic Pain', 'Pain Management'],
+  gabapentin: ['Neuropathic Pain', 'Seizures', 'Nerve Pain'],
+  sertraline: ['Depression', 'Anxiety', 'Mental Health'],
+  fluoxetine: ['Depression', 'Anxiety', 'OCD'],
+  multivitamin: ['Nutritional Deficiency', 'General Health', 'Vitamin Deficiency'],
+  metformin_hcl: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
 };
 
 const symptomRiskMapping = {
@@ -57,12 +94,14 @@ const symptomRiskMapping = {
   body_ache: { level: 'moderate', weight: 3, reason: 'Body aches often accompany viral illness' },
 };
 
-function analyzeSymptoms(symptoms, triageResult) {
-  const normalizedSymptoms = symptoms.toLowerCase();
+function analyzeSymptoms(symptoms, triageResult, prescriptionText) {
+  const normalizedSymptoms = (symptoms || '').toLowerCase();
+  const normalizedPrescription = (prescriptionText || '').toLowerCase();
   const detectedSymptoms = [];
   const conditions = new Set();
   let totalRiskScore = 0;
   let riskReasons = [];
+  let prescriptionConditions = [];
 
   const symptomVariations = {
     fever: ['fever', 'febrile', 'high temperature', 'elevated temperature', 'feverish'],
@@ -87,7 +126,8 @@ function analyzeSymptoms(symptoms, triageResult) {
 
   for (const [baseKeyword, variations] of Object.entries(symptomVariations)) {
     for (const variation of variations) {
-      if (normalizedSymptoms.includes(variation)) {
+      const textToSearch = normalizedSymptoms + ' ' + normalizedPrescription;
+      if (textToSearch.includes(variation)) {
         if (!detectedSymptoms.includes(baseKeyword)) {
           detectedSymptoms.push(baseKeyword);
         }
@@ -107,13 +147,38 @@ function analyzeSymptoms(symptoms, triageResult) {
 
   for (const [keyword, info] of Object.entries(symptomRiskMapping)) {
     const keywordFormatted = keyword.replace(/_/g, ' ');
-    if (normalizedSymptoms.includes(keywordFormatted)) {
+    const textToSearch = normalizedSymptoms + ' ' + normalizedPrescription;
+    if (textToSearch.includes(keywordFormatted)) {
       if (!detectedSymptoms.includes(keyword)) {
         detectedSymptoms.push(keyword);
       }
       if (!riskReasons.includes(info.reason)) {
         totalRiskScore += info.weight;
         riskReasons.push(info.reason);
+      }
+    }
+  }
+
+  if (normalizedPrescription.length > 0) {
+    console.log('[ClinicalLogic] Analyzing prescription text:', normalizedPrescription.substring(0, 200));
+
+    for (const [medicine, relatedConditions] of Object.entries(prescriptionConditionMapping)) {
+      if (normalizedPrescription.includes(medicine)) {
+        relatedConditions.forEach(c => {
+          conditions.add(c);
+          prescriptionConditions.push(c);
+        });
+        console.log('[ClinicalLogic] Found medicine:', medicine, '->', relatedConditions.join(', '));
+      }
+    }
+
+    const knownConditions = ['diabetes', 'hypertension', 'thyroid', 'asthma', 'depression', 'anxiety', 'arthritis', 'cholesterol', 'cancer', 'heart disease'];
+    for (const condition of knownConditions) {
+      if (normalizedPrescription.includes(condition)) {
+        const condName = condition.charAt(0).toUpperCase() + condition.slice(1);
+        conditions.add(condName);
+        prescriptionConditions.push(condName);
+        console.log('[ClinicalLogic] Found condition:', condName);
       }
     }
   }
@@ -137,6 +202,13 @@ function analyzeSymptoms(symptoms, triageResult) {
     riskLevel = 'moderate';
   }
 
+  if (prescriptionConditions.length > 0) {
+    totalRiskScore += prescriptionConditions.length;
+    if (totalRiskScore >= 5 && riskLevel === 'low') {
+      riskLevel = 'moderate';
+    }
+  }
+
   const conditionArray = Array.from(conditions).slice(0, 3);
   
   return {
@@ -144,7 +216,8 @@ function analyzeSymptoms(symptoms, triageResult) {
     conditions: conditionArray,
     riskLevel,
     totalRiskScore,
-    riskReasons
+    riskReasons,
+    prescriptionConditions: [...new Set(prescriptionConditions)]
   };
 }
 
@@ -270,27 +343,41 @@ function generateRedFlags(riskLevel, analysis) {
 }
 
 function calculateConfidence(riskLevel, analysis, hasAiConfidence) {
-  if (hasAiConfidence) {
-    return hasAiConfidence;
-  }
+  const aiConfidence = typeof hasAiConfidence === 'number' && hasAiConfidence > 0.4 && hasAiConfidence <= 1;
   
   let baseConfidence = 0.5;
   
-  if (analysis.detectedSymptoms.length >= 3) {
-    baseConfidence += 0.15;
-  } else if (analysis.detectedSymptoms.length >= 1) {
-    baseConfidence += 0.1;
-  }
+  const symptomBonus = Math.min(analysis.detectedSymptoms.length * 0.05, 0.2);
+  baseConfidence += symptomBonus;
+  
+  const conditionBonus = analysis.conditions && analysis.conditions.length > 0 
+    ? Math.min(analysis.conditions.length * 0.03, 0.1) 
+    : 0;
+  baseConfidence += conditionBonus;
   
   if (analysis.totalRiskScore >= 10) {
     baseConfidence += 0.1;
   }
   
-  if (riskLevel === 'low' || riskLevel === 'moderate') {
+  if (analysis.totalRiskScore >= 5) {
+    baseConfidence += 0.05;
+  }
+  
+  if (riskLevel === 'critical' || riskLevel === 'high') {
+    baseConfidence += 0.05;
+  }
+  
+  if (analysis.prescriptionConditions && analysis.prescriptionConditions.length > 0) {
     baseConfidence += 0.1;
   }
   
-  return Math.min(0.95, Math.max(0.3, baseConfidence));
+  const finalConfidence = Math.min(0.95, Math.max(0.4, baseConfidence));
+  
+  if (aiConfidence) {
+    return (hasAiConfidence + finalConfidence) / 2;
+  }
+  
+  return finalConfidence;
 }
 
 function getConfidenceText(confidence) {
@@ -360,5 +447,6 @@ module.exports = {
   getConfidenceLabel,
   recommendSpecialist,
   symptomConditionMapping,
-  symptomRiskMapping
+  symptomRiskMapping,
+  prescriptionConditionMapping
 };

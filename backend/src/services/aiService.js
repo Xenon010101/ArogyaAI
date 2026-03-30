@@ -3,10 +3,10 @@ const https = require('https');
 const GEMINI_API_VERSION = 'v1beta';
 const DEFAULT_MODEL = 'gemini-1.5-flash';
 
-function buildPrompt(symptoms, userContext, fileDescriptions) {
+function buildPrompt(symptoms, userContext, prescriptionText, fileDescriptions) {
   userContext = userContext || {};
   
-  let prompt = `You are ArogyaAI, a medical AI assistant. Analyze the patient's symptoms and provide specific medical conditions.
+  let prompt = `You are ArogyaAI, a medical AI assistant. Analyze the patient's health information and provide specific medical conditions.
 
 PATIENT CONTEXT:
 `;
@@ -17,44 +17,52 @@ PATIENT CONTEXT:
     prompt += `- Medical History: ${userContext.medicalHistory.join(', ')}\n`;
   }
 
+  const hasPrescription = prescriptionText && prescriptionText.trim().length > 0;
+  const symptomsOnly = symptoms || 'No text symptoms provided';
+
   prompt += `
-SYMPTOMS REPORTED:
-${symptoms || 'No text symptoms provided'}
+PATIENT-REPORTED SYMPTOMS:
+${symptomsOnly}
 
 `;
   
+  if (hasPrescription) {
+    prompt += `
+PRESCRIPTION/DOCUMENT INFORMATION:
+${prescriptionText}
+
+`;
+  }
+  
   if (fileDescriptions && fileDescriptions.length > 0) {
     prompt += `
-ADDITIONAL INFORMATION:
+ADDITIONAL FILE INFORMATION:
 ${fileDescriptions.map((desc, i) => `File ${i + 1}: ${desc}`).join('\n')}
 `;
   }
 
   prompt += `
 
-TASK: Analyze the symptoms and return ONLY valid JSON (no markdown, no explanation):
+ANALYSIS TASK: 
+Analyze ALL information provided (symptoms AND prescription data) and return ONLY valid JSON (no markdown):
 {
-  "risk_level": "low",
-  "risk_explanation": "Specific explanation based on the patient's symptoms and condition",
-  "summary": "Brief clinical summary of findings",
-  "possible_conditions": ["Specific condition 1", "Specific condition 2", "Specific condition 3"],
-  "recommendations": ["Specific recommendation 1", "Specific recommendation 2"],
+  "risk_level": "low|moderate|high|critical",
+  "risk_explanation": "Specific explanation based on symptoms, prescription data, and overall assessment",
+  "summary": "Brief clinical summary combining all data sources",
+  "possible_conditions": ["Condition 1", "Condition 2", "Condition 3"],
+  "recommendations": ["Recommendation 1", "Recommendation 2"],
   "red_flags": [],
   "confidence_score": 0.7,
-  "clinical_reasoning": "Detailed explanation of how symptoms relate to possible conditions and why risk level was assigned",
+  "clinical_reasoning": "How symptoms and prescription data led to this assessment",
   "suggested_tests": ["Test 1" | null]
 }
 
-EXAMPLES:
-- Symptoms "fever and cough" → conditions: ["Common Cold", "Flu", "Respiratory Infection"]
-- Symptoms "chest pain and shortness of breath" → conditions: ["Angina", "Anxiety", "Gastritis"]
-- Symptoms "headache and fatigue" → conditions: ["Tension Headache", "Migraine", "Anemia"]
-- Symptoms "stomach pain and nausea" → conditions: ["Gastritis", "Food Poisoning", "GERD"]
-
 IMPORTANT:
-- Provide SPECIFIC medical conditions, not generic advice
-- Analyze symptoms thoroughly to determine likely diagnoses
-- Provide at least 3 possible conditions`;
+- If prescription shows medications/conditions, factor them into analysis
+- If prescription mentions diseases (diabetes, hypertension), consider related complications
+- If medications present, infer related conditions
+- Provide SPECIFIC conditions based on ALL available data
+- At least 3 possible conditions`;
 
   return prompt;
 }
@@ -277,9 +285,9 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
   }
 }
 
-async function analyzeSymptoms(symptoms, userContext, imageBase64, uploadedFiles) {
+async function analyzeSymptoms(symptoms, userContext, imageBase64, uploadedFiles, prescriptionText) {
   if (!symptoms || typeof symptoms !== 'string' || symptoms.trim().length < 3) {
-    if (!imageBase64 && (!uploadedFiles || uploadedFiles.length === 0)) {
+    if (!imageBase64 && (!uploadedFiles || uploadedFiles.length === 0) && !prescriptionText) {
       return {
         risk_level: 'moderate',
         risk_explanation: 'Insufficient information provided for analysis.',
@@ -295,27 +303,27 @@ async function analyzeSymptoms(symptoms, userContext, imageBase64, uploadedFiles
   }
 
   symptoms = symptoms ? symptoms.trim() : '';
-  if (symptoms.length > 2000) {
-    symptoms = symptoms.substring(0, 2000);
+  if (symptoms.length > 3000) {
+    symptoms = symptoms.substring(0, 3000);
   }
 
   let fileDescriptions = [];
   if (uploadedFiles && uploadedFiles.length > 0) {
     uploadedFiles.forEach(file => {
-      if (file.category === 'prescription') {
-        fileDescriptions.push(`Prescription/Document: ${file.originalName || file.fileName}`);
-      } else if (file.category === 'image' && file !== imageBase64) {
+      if (file.category === 'image' && file !== imageBase64) {
         fileDescriptions.push(`Image provided: ${file.originalName || file.fileName}`);
       }
     });
   }
 
-  const prompt = buildPrompt(symptoms, userContext, fileDescriptions);
+  const hasPrescription = prescriptionText && prescriptionText.trim().length > 0;
+  const prompt = buildPrompt(symptoms, userContext, prescriptionText, fileDescriptions);
 
   console.log('[Gemini] Starting comprehensive analysis...');
   console.log('[Gemini] Text length:', symptoms.length);
   console.log('[Gemini] Has image:', !!imageBase64);
-  console.log('[Gemini] Files:', fileDescriptions.length);
+  console.log('[Gemini] Has prescription text:', hasPrescription);
+  console.log('[Gemini] Prescription text length:', hasPrescription ? prescriptionText.length : 0);
 
   return await analyzeWithGemini(prompt, imageBase64, 1);
 }

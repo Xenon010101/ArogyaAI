@@ -94,11 +94,29 @@ const nextStepsGuidance = {
   }
 }
 
-const riskExplanations = {
-  critical: 'Based on the symptoms detected, this requires immediate medical attention. Do not delay.',
-  high: 'The symptoms suggest a potentially serious condition that requires prompt medical evaluation.',
-  moderate: 'Your symptoms warrant medical attention but are not immediately life-threatening.',
-  low: 'Your symptoms appear to be minor. Continue monitoring and rest.'
+const getRiskExplanation = (riskLevel, symptomsText) => {
+  const symptoms = (symptomsText || '').toLowerCase()
+  
+  if (symptoms.includes('chest') && riskLevel === 'critical') {
+    return 'Chest pain is a high-risk symptom that may indicate cardiac emergency. Immediate evaluation required.'
+  }
+  if (symptoms.includes('chest') || symptoms.includes('heart')) {
+    return 'Cardiac-related symptoms detected. Heart health evaluation recommended.'
+  }
+  if (symptoms.includes('fever') && symptoms.includes('cough')) {
+    return 'Respiratory infection symptoms detected. Monitor and seek care if worsened.'
+  }
+  if (symptoms.includes('breathing') || symptoms.includes('shortness of breath')) {
+    return 'Breathing difficulty detected. Urgent evaluation recommended.'
+  }
+  
+  const explanations = {
+    critical: 'High-risk symptoms detected. Immediate medical attention required.',
+    high: 'Concerning symptoms detected. Prompt medical evaluation advised.',
+    moderate: 'Symptoms detected. Medical consultation within 24-48 hours recommended.',
+    low: 'Minor symptoms detected. Rest and monitoring advised.'
+  }
+  return explanations[riskLevel] || explanations.moderate
 }
 
 export default function Result() {
@@ -208,7 +226,9 @@ export default function Result() {
     ? specialistMapping[triage.flags[0].type] || specialistMapping.default 
     : specialistMapping.default)
   
-  const symptomsArray = symptoms?.split(/[.,;]/).filter(s => s.trim()).map(s => s.trim()) || []
+  const symptomsArray = (symptoms?.length > 0)
+    ? symptoms.split(/[.,;]/).filter(s => s.trim().length > 0).map(s => s.trim())
+    : ['No symptoms specified']
 
   const confidencePercent = ai?.confidence !== undefined ? Math.round(ai.confidence * 100) : 75
   const confidenceLevel = confidencePercent >= 80 ? 'High' : confidencePercent >= 50 ? 'Moderate' : 'Low'
@@ -281,6 +301,53 @@ export default function Result() {
           {/* Left Column - Main Analysis */}
           <div className="lg:col-span-2 space-y-6">
             
+            {/* AI Prediction Card */}
+            <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+                  <Brain className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">AI Prediction</h2>
+                  <p className="text-xs text-blue-600">Powered by Gemini AI</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-4 mb-4">
+                <h3 className="text-sm font-medium text-gray-500 mb-2">Possible Conditions</h3>
+                <div className="flex flex-wrap gap-2">
+                  {(ai?.conditions?.length > 0 ? ai.conditions : ['General Illness', 'Viral Infection', 'Common Cold']).map((condition, i) => (
+                    <span key={i} className="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold">
+                      {condition}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Confidence Score */}
+              <div className="bg-white rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Confidence Score</span>
+                  <span className={`text-lg font-bold ${
+                    confidencePercent >= 80 ? 'text-green-600' :
+                    confidencePercent >= 50 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {confidencePercent}%
+                  </span>
+                </div>
+                <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all duration-1000 ${
+                      confidencePercent >= 80 ? 'bg-gradient-to-r from-green-400 to-green-600' :
+                      confidencePercent >= 50 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' : 'bg-gradient-to-r from-red-400 to-red-600'
+                    }`}
+                    style={{ width: `${Math.max(confidencePercent, 10)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">{confidenceLevel} confidence in this analysis</p>
+              </div>
+            </Card>
+
             {/* Risk Assessment Card */}
             <Card className="border-l-4 border-l-blue-500">
               <div className="flex items-start justify-between mb-4">
@@ -301,7 +368,7 @@ export default function Result() {
                       <h2 className="text-lg font-bold text-gray-900">Risk Assessment</h2>
                       <RiskBadge level={riskLevel} />
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">{riskExplanations[riskLevel]}</p>
+                    <p className="text-sm text-gray-600 mt-1">{getRiskExplanation(riskLevel, symptoms)}</p>
                   </div>
                 </div>
               </div>
@@ -318,55 +385,6 @@ export default function Result() {
                 </div>
               </div>
             </Card>
-
-            {/* AI Prediction Card */}
-            {ai?.conditions?.length > 0 && (
-              <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-                    <Brain className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-900">AI Prediction</h2>
-                    <p className="text-xs text-blue-600">Powered by Gemini AI</p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl p-4 mb-4">
-                  <h3 className="text-sm font-medium text-gray-500 mb-2">Possible Conditions</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {ai.conditions.map((condition, i) => (
-                      <span key={i} className="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-semibold">
-                        {condition}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Confidence Score */}
-                <div className="bg-white rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Confidence Score</span>
-                    <span className={`text-lg font-bold ${
-                      confidencePercent >= 80 ? 'text-green-600' :
-                      confidencePercent >= 50 ? 'text-yellow-600' : 'text-red-600'
-                    }`}>
-                      {confidencePercent}%
-                    </span>
-                  </div>
-                  <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-1000 ${
-                        confidencePercent >= 80 ? 'bg-gradient-to-r from-green-400 to-green-600' :
-                        confidencePercent >= 50 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' : 'bg-gradient-to-r from-red-400 to-red-600'
-                      }`}
-                      style={{ width: `${Math.max(confidencePercent, 10)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">{confidenceLevel} confidence in this analysis</p>
-                </div>
-              </Card>
-            )}
 
             {/* Clinical Reasoning Card */}
             {(ai?.clinical_reasoning || ai?.summary || ai?.risk_explanation) && (
@@ -451,6 +469,41 @@ export default function Result() {
                 </div>
               </Card>
             )}
+
+            {/* Next Steps Card */}
+            <Card className={`border-l-4 ${
+              riskLevel === 'critical' ? 'border-l-red-500' :
+              riskLevel === 'high' ? 'border-l-orange-500' :
+              riskLevel === 'moderate' ? 'border-l-yellow-500' : 'border-l-green-500'
+            }`}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                  riskLevel === 'critical' ? 'bg-red-100' :
+                  riskLevel === 'high' ? 'bg-orange-100' :
+                  riskLevel === 'moderate' ? 'bg-yellow-100' : 'bg-green-100'
+                }`}>
+                  {nextStepsGuidance[riskLevel]?.icon && (
+                    <nextStepsGuidance[riskLevel].icon className={`h-6 w-6 ${
+                      riskLevel === 'critical' ? 'text-red-600' :
+                      riskLevel === 'high' ? 'text-orange-600' :
+                      riskLevel === 'moderate' ? 'text-yellow-600' : 'text-green-600'
+                    }`} />
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">{nextStepsGuidance[riskLevel]?.title || 'Next Steps'}</h2>
+                  <p className="text-xs text-gray-500">What to do next</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {(nextStepsGuidance[riskLevel]?.actions || nextStepsGuidance.moderate.actions).map((action, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <CheckCircle className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-gray-700 text-sm">{action}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
 
           </div>
 
