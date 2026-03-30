@@ -36,4 +36,5 @@ VITE_API_URL=http://localhost:5000/api
 - File uploads (images, prescriptions)
 - Risk level assessment
 - Analysis history
+- PDF report generation
 - Responsive design
