@@ -287,15 +287,3 @@ Feel free to open an issue or connect! 🚀
 
 ```
 
----
-
-## 🔥 Why this is “MAX PRO”
-
-- Badges → instant credibility  
-- Clean hierarchy → easy to scan  
-- Recruiter-friendly storytelling  
-- Hackathon-ready explanation  
-- GitHub aesthetic (center align + visuals)  
-
----
-
