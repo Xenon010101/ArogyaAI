@@ -47,18 +47,27 @@ It delivers **structured medical insights, triage detection, and actionable reco
 | Auth       | JWT |
 | Security   | Helmet, Rate Limiting, Joi |
 
----
+
+
+## 📸 Demo Preview  
 
 ## 📸 Demo Preview  
 
 <p align="center">
-  <img src="https://via.placeholder.com/800x400?text=Dashboard+UI" width="80%"/>
-  <img src="https://via.placeholder.com/800x400?text=AI+Analysis+Result" width="80%"/>
-  <img src="https://via.placeholder.com/800x400?text=PDF+Report" width="80%"/>
+  <img src="assets/screenshots/dashboard.png" width="45%" />
+  <img src="assets/screenshots/history.png" width="45%" />
 </p>
 
-> ⚠️ Replace with actual screenshots for maximum impact  
+<p align="center">
+  <img src="assets/screenshots/analysis1.png" width="45%" />
+  <img src="assets/screenshots/analysis2.png" width="45%" />
+</p>
 
+<p align="center">
+  <img src="assets/screenshots/report1.png" width="30%" />
+  <img src="assets/screenshots/report2.png" width="30%" />
+  <img src="assets/screenshots/report3.png" width="30%" />
+</p>
 ---
 
 ## ⚙️ Quick Start  
