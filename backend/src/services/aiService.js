@@ -154,14 +154,15 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
     return getSafeResponse();
   }
 
-  const model = 'gemini-1.5-flash';
-  const url = `https://generativelanguage.googleapis.com/${GEMINI_API_VERSION}/models/${model}:generateContent?key=${apiKey}`;
+  const model = imageData && attempt === 1 ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  console.log(`[Gemini] Attempt ${attempt}: ${imageData ? 'Multimodal (text+image)' : 'Text-only'}`);
+  console.log(`[Gemini] Using model: ${model}`);
 
   let contents = [];
   
   if (imageData && attempt === 1) {
+    console.log('[Gemini] Attempting multimodal analysis with image...');
     contents = [{
       role: 'user',
       parts: [
@@ -175,6 +176,7 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
       ]
     }];
   } else {
+    console.log('[Gemini] Using text-only analysis...');
     contents = [{
       role: 'user',
       parts: [{ text: prompt }]
@@ -213,11 +215,13 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
         errLower.includes('unsupported') ||
         errLower.includes('does not support') ||
         errLower.includes('inline') ||
-        errLower.includes('not support')
+        errLower.includes('not support') ||
+        errLower.includes('model') ||
+        errLower.includes('permission')
       );
       
       if (isImageError) {
-        console.warn('[Gemini] Image not supported by this model, using text-only analysis...');
+        console.warn('[Gemini] Image analysis failed, falling back to text-only...');
         return analyzeWithGemini(prompt, null, 2);
       }
 
@@ -238,7 +242,7 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
       return getSafeResponse();
     }
 
-    console.log('[Gemini] Raw response:', text.substring(0, 300));
+    console.log('[Gemini] Analysis complete, response length:', text.length);
     const parsed = parseJson(text);
 
     if (!parsed || !parsed.risk_level) {

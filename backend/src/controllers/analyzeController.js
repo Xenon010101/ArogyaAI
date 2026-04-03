@@ -96,20 +96,28 @@ exports.analyze = async function(req, res, next) {
     let extractedPrescriptionText = '';
     let prescriptionExtracted = false;
     let prescriptionImageBased = false;
+    let prescriptionFilesCount = processedFiles.prescriptions?.length || 0;
     
-    if (processedFiles.prescriptions?.length > 0) {
+    if (prescriptionFilesCount > 0) {
       try {
         const prescriptionData = await processPrescriptionsForAnalysis(processedFiles.prescriptions);
-        extractedPrescriptionText = prescriptionData.combinedText || '';
-        prescriptionExtracted = extractedPrescriptionText.length > 0;
-        prescriptionImageBased = prescriptionData.hasImageBasedPDF || false;
         
-        if (prescriptionExtracted) {
-          console.log('[Analysis] Prescription text extracted:', extractedPrescriptionText.substring(0, 200) + '...');
-        } else if (prescriptionImageBased) {
-          console.log('[Analysis] Prescription is image-based (scanned PDF or image)');
-        } else {
-          console.log('[Analysis] No text extracted from prescriptions');
+        if (prescriptionData.extractedTexts && prescriptionData.extractedTexts.length > 0) {
+          extractedPrescriptionText = prescriptionData.combinedText || '';
+          prescriptionExtracted = extractedPrescriptionText.length > 0;
+          prescriptionImageBased = prescriptionData.hasImageBasedPDF || false;
+          
+          console.log('[Analysis] Prescription files processed:', prescriptionFilesCount);
+          
+          if (prescriptionExtracted) {
+            const textExtracted = prescriptionData.extractedTexts.filter(t => !t.isImageBased).length;
+            console.log('[Analysis] Text extracted from', textExtracted, 'files');
+            console.log('[Analysis] Prescription text preview:', extractedPrescriptionText.substring(0, 200));
+          }
+          
+          if (prescriptionImageBased) {
+            console.log('[Analysis] Some prescriptions are image-based (scanned)');
+          }
         }
       } catch (prescError) {
         console.warn('[Analysis] Prescription extraction failed:', prescError.message);
@@ -120,7 +128,7 @@ exports.analyze = async function(req, res, next) {
 
     const combinedInputText = buildCombinedInput(symptoms, extractedPrescriptionText);
     console.log('[Analysis] Combined input length:', combinedInputText.length);
-    console.log('[Analysis] Combined input preview:', combinedInputText.substring(0, 300) + '...');
+    console.log('[Analysis] Combined input preview:', combinedInputText.substring(0, 300));
 
     let imageBase64 = null;
     let imageProcessed = false;
@@ -261,9 +269,11 @@ exports.analyze = async function(req, res, next) {
       analyzedAt: analysis.createdAt ? analysis.createdAt.toISOString() : new Date().toISOString(),
       imageAnalysisFailed: imageAnalysisFailed,
       imageProcessed: imageProcessed,
+      prescriptionFilesCount: prescriptionFilesCount,
       prescriptionExtracted: prescriptionExtracted,
       prescriptionImageBased: prescriptionImageBased,
-      extractedPrescriptionText: prescriptionExtracted ? extractedPrescriptionText.substring(0, 500) : null,
+      prescriptionAnalyzed: prescriptionExtracted || prescriptionImageBased,
+      extractedPrescriptionText: extractedPrescriptionText.length > 0 ? extractedPrescriptionText.substring(0, 500) : null,
     };
 
     res.status(201).json({

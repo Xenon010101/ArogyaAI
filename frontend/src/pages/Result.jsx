@@ -284,27 +284,39 @@ export default function Result() {
 
         {/* Image Analysis Warning */}
         {analysis.imageAnalysisFailed && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-amber-900">Image Could Not Be Analyzed</p>
+              <p className="font-semibold text-amber-900">Image Uploaded</p>
               <p className="text-sm text-amber-700 mt-1">
-                The uploaded image could not be processed by the AI model. Analysis was performed based on text symptoms only. 
-                For a complete analysis, please consult a healthcare professional.
+                Image was uploaded but could not be processed by AI. The file is saved and available for doctor review.
               </p>
             </div>
           </div>
         )}
 
-        {/* Prescription Image-Based Warning */}
-        {analysis.prescriptionImageBased && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-            <FileText className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+        {/* Prescription Info */}
+        {analysis.prescriptionFilesCount > 0 && (
+          <div className={`rounded-xl p-4 mb-4 flex items-start gap-3 ${
+            analysis.prescriptionExtracted 
+              ? 'bg-green-50 border border-green-200' 
+              : 'bg-blue-50 border border-blue-200'
+          }`}>
+            <FileText className={`h-5 w-5 flex-shrink-0 mt-0.5 ${
+              analysis.prescriptionExtracted ? 'text-green-600' : 'text-blue-600'
+            }`} />
             <div>
-              <p className="font-semibold text-blue-900">Document Uploaded (Scanned/Image PDF)</p>
-              <p className="text-sm text-blue-700 mt-1">
-                Your prescription document appears to be a scanned PDF or image. Text could not be extracted for analysis. 
-                The doctor reviewing this report may need to examine the original document.
+              <p className={`font-semibold ${
+                analysis.prescriptionExtracted ? 'text-green-900' : 'text-blue-900'
+              }`}>
+                {analysis.prescriptionFilesCount} Document(s) Uploaded
+              </p>
+              <p className={`text-sm mt-1 ${
+                analysis.prescriptionExtracted ? 'text-green-700' : 'text-blue-700'
+              }`}>
+                {analysis.prescriptionExtracted 
+                  ? 'Text successfully extracted and included in analysis.'
+                  : 'Document appears to be scanned/image. Doctor should review the original file.'}
               </p>
             </div>
           </div>

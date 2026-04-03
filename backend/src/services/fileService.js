@@ -12,27 +12,31 @@ try {
 async function extractTextFromPDF(filePath) {
   if (!pdfParse) {
     console.warn('[FileService] pdf-parse module not loaded');
-    return null;
+    return { success: false, text: null, reason: 'module_not_loaded' };
   }
 
   try {
     const dataBuffer = fs.readFileSync(filePath);
+    console.log('[FileService] PDF file size:', dataBuffer.length, 'bytes');
+    
     const data = await pdfParse(dataBuffer);
+    console.log('[FileService] PDF pages:', data.numpages, '| Text length:', data.text?.length || 0);
     
     if (data && data.text && data.text.trim().length > 0) {
-      console.log('[FileService] Extracted', data.text.length, 'characters from PDF');
-      return data.text.trim();
+      console.log('[FileService] Successfully extracted', data.text.trim().length, 'characters from PDF');
+      return { success: true, text: data.text.trim(), reason: 'text_extracted' };
     }
     
     if (data && data.numpages > 0) {
-      console.log('[FileService] PDF has', data.numpages, 'pages but no extractable text - likely image-based (scanned)');
-    } else {
-      console.warn('[FileService] PDF appears to be empty');
+      console.log('[FileService] PDF is image-based (scanned document)');
+      return { success: false, text: null, reason: 'image_based_pdf' };
     }
-    return null;
+    
+    console.warn('[FileService] PDF appears to be empty');
+    return { success: false, text: null, reason: 'empty_pdf' };
   } catch (error) {
     console.error('[FileService] PDF extraction error:', error.message);
-    return null;
+    return { success: false, text: null, reason: 'error', error: error.message };
   }
 }
 
@@ -102,11 +106,12 @@ async function extractTextFromPrescription(filePath) {
 
 async function processPrescriptionsForAnalysis(prescriptionFiles) {
   if (!prescriptionFiles || prescriptionFiles.length === 0) {
-    return { extractedTexts: [], combinedText: '', hasImageBasedPDF: false };
+    return { extractedTexts: [], combinedText: '', hasImageBasedPDF: false, allProcessed: true };
   }
 
   const extractedTexts = [];
   let hasImageBasedPDF = false;
+  let allProcessed = true;
 
   for (const file of prescriptionFiles) {
     console.log('[FileService] Processing prescription:', file.originalName);
@@ -115,22 +120,33 @@ async function processPrescriptionsForAnalysis(prescriptionFiles) {
     if (['.jpg', '.jpeg', '.png', '.gif'].includes(ext)) {
       hasImageBasedPDF = true;
       console.log('[FileService] Image prescription detected:', file.originalName);
-    }
-    
-    const text = await extractTextFromPrescription(file.path);
-    if (text) {
       extractedTexts.push({
         fileName: file.originalName,
-        text: text,
-        isImageBased: false
-      });
-    } else if (ext === '.pdf') {
-      hasImageBasedPDF = true;
-      extractedTexts.push({
-        fileName: file.originalName,
-        text: '[Document uploaded - text extraction not available for scanned PDF]',
+        text: '[Image document uploaded - visual review recommended for doctor]',
         isImageBased: true
       });
+      continue;
+    }
+    
+    if (ext === '.pdf') {
+      const result = await extractTextFromPDF(file.path);
+      
+      if (result.success && result.text) {
+        extractedTexts.push({
+          fileName: file.originalName,
+          text: result.text,
+          isImageBased: false
+        });
+        console.log('[FileService] Successfully extracted text from:', file.originalName);
+      } else {
+        hasImageBasedPDF = true;
+        extractedTexts.push({
+          fileName: file.originalName,
+          text: '[Scanned PDF - text extraction not available, visual review recommended]',
+          isImageBased: true
+        });
+        console.log('[FileService] Could not extract text from:', file.originalName, '- Reason:', result.reason);
+      }
     }
   }
 
@@ -138,10 +154,11 @@ async function processPrescriptionsForAnalysis(prescriptionFiles) {
     `[Document: ${t.fileName}]\n${t.text}`
   ).join('\n\n');
 
-  console.log('[FileService] Total extracted text length:', combinedText.length);
-  console.log('[FileService] Has image-based content:', hasImageBasedPDF);
+  console.log('[FileService] Processed', extractedTexts.length, 'files');
+  console.log('[FileService] Text extracted from', extractedTexts.filter(t => !t.isImageBased).length, 'files');
+  console.log('[FileService] Image-based files:', extractedTexts.filter(t => t.isImageBased).length);
 
-  return { extractedTexts, combinedText, hasImageBasedPDF };
+  return { extractedTexts, combinedText, hasImageBasedPDF, allProcessed };
 }
 
 function deleteFile(fileUrl) {

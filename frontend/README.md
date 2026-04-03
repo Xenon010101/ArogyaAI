@@ -1,7 +1,7 @@
 # ArogyaAI Frontend
 
 React + Tailwind CSS frontend for the ArogyaAI healthcare application.
-
+ 
 ## Setup
 
 ```bash
