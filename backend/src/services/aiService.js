@@ -154,10 +154,14 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
     return getSafeResponse();
   }
 
-  const model = imageData && attempt === 1 ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
+  const model = imageData && attempt === 1 ? 'gemini-1.5-flash' : 'gemini-1.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   console.log(`[Gemini] Using model: ${model}`);
+  console.log(`[Gemini] Has image data:`, !!imageData);
+  if (imageData) {
+    console.log(`[Gemini] Image data size:`, imageData.data?.length || 0);
+  }
 
   let contents = [];
   

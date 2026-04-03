@@ -61,6 +61,14 @@ exports.analyze = async function(req, res, next) {
       throw new ApiError(401, 'Authentication required');
     }
 
+    console.log('========================================');
+    console.log('[ANALYZE] Starting new analysis request');
+    console.log('[ANALYZE] req.files:', req.files ? JSON.stringify({
+      images: req.files.images?.length || 0,
+      prescriptions: req.files.prescriptions?.length || 0
+    }) : 'undefined');
+    console.log('========================================');
+
     const symptoms = req.body && req.body.symptoms;
     if (!symptoms || typeof symptoms !== 'string' || symptoms.trim().length < 3) {
       throw new ApiError(400, 'Please provide a valid symptoms description (at least 3 characters)');
@@ -76,9 +84,9 @@ exports.analyze = async function(req, res, next) {
     }
 
     let processedFiles = { images: [], prescriptions: [], all: [] };
-    console.log('[Analysis] Files in request:', req.files ? 
-      `images: ${req.files.images?.length || 0}, prescriptions: ${req.files.prescriptions?.length || 0}` : 
-      'none');
+    
+    console.log('[ANALYZE] Before processUploadedFiles - req.files.images:', req.files?.images?.length);
+    console.log('[ANALYZE] Before processUploadedFiles - req.files.prescriptions:', req.files?.prescriptions?.length);
     
     try {
       processedFiles = processUploadedFiles(req.files) || processedFiles;
@@ -87,18 +95,16 @@ exports.analyze = async function(req, res, next) {
     }
     const allFiles = processedFiles.all || [];
     
-    console.log('[Analysis] Files received:', {
-      images: processedFiles.images?.length || 0,
-      prescriptions: processedFiles.prescriptions?.length || 0,
-      total: allFiles.length
-    });
+    console.log('[ANALYZE] After processing - Images:', processedFiles.images.length, 'Prescriptions:', processedFiles.prescriptions.length);
 
+    // Process prescriptions
     let extractedPrescriptionText = '';
     let prescriptionExtracted = false;
     let prescriptionImageBased = false;
     let prescriptionFilesCount = processedFiles.prescriptions?.length || 0;
     
     if (prescriptionFilesCount > 0) {
+      console.log('[ANALYZE] Processing', prescriptionFilesCount, 'prescription files...');
       try {
         const prescriptionData = await processPrescriptionsForAnalysis(processedFiles.prescriptions);
         
@@ -107,40 +113,28 @@ exports.analyze = async function(req, res, next) {
           prescriptionExtracted = extractedPrescriptionText.length > 0;
           prescriptionImageBased = prescriptionData.hasImageBasedPDF || false;
           
-          console.log('[Analysis] Prescription files processed:', prescriptionFilesCount);
-          
+          console.log('[ANALYZE] Prescription text length:', extractedPrescriptionText.length);
           if (prescriptionExtracted) {
-            const textExtracted = prescriptionData.extractedTexts.filter(t => !t.isImageBased).length;
-            console.log('[Analysis] Text extracted from', textExtracted, 'files');
-            console.log('[Analysis] Prescription text preview:', extractedPrescriptionText.substring(0, 200));
-          }
-          
-          if (prescriptionImageBased) {
-            console.log('[Analysis] Some prescriptions are image-based (scanned)');
+            console.log('[ANALYZE] Prescription text extracted successfully!');
+            console.log('[ANALYZE] Text preview:', extractedPrescriptionText.substring(0, 100));
           }
         }
       } catch (prescError) {
-        console.warn('[Analysis] Prescription extraction failed:', prescError.message);
+        console.warn('[ANALYZE] Prescription extraction failed:', prescError.message);
       }
-    } else {
-      console.log('[Analysis] No prescription files to process');
     }
 
-    const combinedInputText = buildCombinedInput(symptoms, extractedPrescriptionText);
-    console.log('[Analysis] Combined input length:', combinedInputText.length);
-    console.log('[Analysis] Combined input preview:', combinedInputText.substring(0, 300));
-
+    // Process images
     let imageBase64 = null;
     let imageProcessed = false;
     let imageError = null;
     const hasImages = processedFiles.images && processedFiles.images.length > 0;
     
     if (hasImages) {
-      console.log('[Analysis] Processing', processedFiles.images.length, 'images');
+      console.log('[ANALYZE] Processing', processedFiles.images.length, 'image files...');
       try {
         const fs = require('fs');
         const firstImage = processedFiles.images[0];
-        console.log('[Analysis] First image:', JSON.stringify(firstImage));
         
         if (firstImage && firstImage.path) {
           if (fs.existsSync(firstImage.path)) {
@@ -152,38 +146,42 @@ exports.analyze = async function(req, res, next) {
                 mimeType: firstImage.mimetype || 'image/jpeg'
               };
               imageProcessed = true;
-              console.log('[Analysis] Image prepared for AI:', firstImage.originalName, '- Size:', base64Data.length);
+              console.log('[ANALYZE] Image prepared for AI:', firstImage.originalName, '- Base64 size:', base64Data.length);
             }
           } else {
-            console.log('[Analysis] Image file not found at path:', firstImage.path);
+            console.log('[ANALYZE] Image file NOT found:', firstImage.path);
           }
         }
       } catch (imgError) {
         imageError = 'Failed to process image: ' + imgError.message;
-        console.warn('[Analysis] Could not process image:', imgError.message);
+        console.warn('[ANALYZE] Could not process image:', imgError.message);
       }
-    } else {
-      console.log('[Analysis] No images to process');
     }
 
-    const symptomsAnalysis = clinicalLogic.analyzeSymptoms(combinedInputText || symptoms || '', triageResult, extractedPrescriptionText);
-    console.log('[Analysis] Symptoms analyzed:', symptomsAnalysis);
+    // Build combined input
+    const combinedInputText = buildCombinedInput(symptoms, extractedPrescriptionText);
+    console.log('[ANALYZE] Combined input length:', combinedInputText.length);
+    console.log('[ANALYZE] Symptoms length:', symptoms.length);
+    console.log('[ANALYZE] Prescription text length:', extractedPrescriptionText.length);
 
+    // Analyze symptoms
+    const symptomsAnalysis = clinicalLogic.analyzeSymptoms(combinedInputText || symptoms || '', triageResult, extractedPrescriptionText);
+    console.log('[ANALYZE] Symptoms analysis:', JSON.stringify(symptomsAnalysis));
+
+    // Call AI
     let aiResult;
     let imageAnalysisFailed = false;
-    let prescriptionAnalysisUsed = prescriptionExtracted;
+    
+    console.log('[ANALYZE] Calling AI service...');
+    console.log('[ANALYZE] - Combined text length:', combinedInputText.length);
+    console.log('[ANALYZE] - Image prepared:', !!imageBase64);
     
     try {
       aiResult = await aiService.analyzeSymptoms(combinedInputText, userContext, imageBase64, allFiles, extractedPrescriptionText);
+      console.log('[ANALYZE] AI result received:', aiResult.risk_level);
     } catch (aiError) {
-      console.error('[Analysis] AI failed:', aiError.message);
-      const errMsg = aiError.message || '';
-      if (imageBase64 && errMsg.toLowerCase().includes('image')) {
-        imageAnalysisFailed = true;
-        aiResult = await aiService.analyzeSymptoms(combinedInputText, userContext, null, allFiles, extractedPrescriptionText);
-      } else {
-        aiResult = aiService.getSafeResponse();
-      }
+      console.error('[ANALYZE] AI failed:', aiError.message);
+      aiResult = aiService.getSafeResponse();
     }
 
     const combinedRiskLevel = determineCombinedRisk(triageResult, aiResult, symptoms);

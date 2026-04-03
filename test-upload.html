@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test File Upload</title>
+    <style>
+        body { font-family: Arial; padding: 20px; max-width: 600px; margin: 50px auto; }
+        .test { background: #f0f0f0; padding: 20px; border-radius: 8px; margin: 10px 0; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        pre { background: #333; color: #0f0; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>ArogyaAI File Upload Test</h1>
+    
+    <div class="test">
+        <h3>1. Test API Health</h3>
+        <button onclick="testHealth()">Test Health</button>
+        <pre id="health-result">Click to test...</pre>
+    </div>
+
+    <div class="test">
+        <h3>2. Test File Upload</h3>
+        <input type="file" id="test-file" accept="image/*,.pdf">
+        <br><br>
+        <button onclick="testUpload()">Upload Test File</button>
+        <pre id="upload-result">Select a file and click upload...</pre>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+
+        async function testHealth() {
+            try {
+                const res = await fetch(`${API_URL}/api/health`);
+                const data = await res.json();
+                document.getElementById('health-result').textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                document.getElementById('health-result').textContent = 'ERROR: ' + e.message;
+            }
+        }
+
+        async function testUpload() {
+            const fileInput = document.getElementById('test-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                document.getElementById('upload-result').textContent = 'ERROR: Please select a file first';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('testFile', file);
+            formData.append('symptoms', 'Test symptoms');
+            formData.append('test', 'value');
+
+            try {
+                const res = await fetch(`${API_URL}/api/analyze/debug-upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                document.getElementById('upload-result').textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                document.getElementById('upload-result').textContent = 'ERROR: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

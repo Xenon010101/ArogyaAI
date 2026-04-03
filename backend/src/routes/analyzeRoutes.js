@@ -20,4 +20,14 @@ router.post('/pre-check', protect, validateRequest(preCheckSchema), analyzeContr
 router.get('/my-analyses', protect, analyzeController.getMyAnalyses);
 router.get('/:id', protect, analyzeController.getAnalysis);
 
+router.post('/debug-upload', (req, res) => {
+  console.log('[DEBUG] req.files:', req.files);
+  console.log('[DEBUG] req.body:', req.body);
+  res.json({
+    success: true,
+    files: req.files,
+    bodyKeys: Object.keys(req.body || {})
+  });
+});
+
 module.exports = router;
