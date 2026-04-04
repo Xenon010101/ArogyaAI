@@ -237,6 +237,38 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
         };
       }
 
+      const isImageError = imageData && (
+        errLower.includes('image') || 
+        errLower.includes('vision') || 
+        errLower.includes('unsupported') ||
+        errLower.includes('does not support') ||
+        errLower.includes('inline') ||
+        errLower.includes('not support') ||
+        errLower.includes('model') ||
+        errLower.includes('permission') ||
+        errLower.includes('vision model') ||
+        errLower.includes('screenshot')
+      );
+      
+      if (isImageError) {
+        console.warn('[Gemini] Image analysis not supported by model, falling back to text-only...');
+        if (attempt === 1) {
+          return analyzeWithGemini(prompt, null, 2);
+        }
+        return {
+          risk_level: 'moderate',
+          risk_explanation: 'Image analysis is not supported by the current AI model.',
+          summary: 'Analysis completed using text input only. Image uploaded is saved for doctor review.',
+          possible_conditions: ['Analysis based on text input'],
+          recommendations: ['Please consult a doctor with the uploaded image for visual diagnosis'],
+          red_flags: [],
+          confidence_score: 0.4,
+          clinical_reasoning: 'Image analysis unavailable - using text-only analysis. The uploaded image will be reviewed by a healthcare professional.',
+          suggested_tests: null,
+          error: 'image_not_supported'
+        };
+      }
+
       if (attempt < 2) {
         return analyzeWithGemini(prompt, imageData, attempt + 1);
       }

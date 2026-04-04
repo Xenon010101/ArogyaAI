@@ -2,6 +2,9 @@ import { jsPDF } from 'jspdf'
 
 export function generateAnalysisPDF(analysis) {
   const doc = new jsPDF()
+  
+  const ai = analysis.ai || analysis.aiAnalysis || {}
+  const triage = analysis.triageResult || {}
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 15
@@ -197,14 +200,14 @@ export function generateAnalysisPDF(analysis) {
   // ===== AI CLINICAL ASSESSMENT =====
   title('AI Clinical Assessment')
 
-  if (analysis.ai?.conditions?.length > 0) {
+  if (ai.conditions?.length > 0) {
     doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(0, 51, 102)
     doc.text('Possible Diagnoses:', margin + 3, y)
     y += 7
 
-    analysis.ai.conditions.forEach((condition, i) => {
+    ai.conditions.forEach((condition, i) => {
       checkPage(10)
       doc.setFillColor(245, 248, 255)
       doc.roundedRect(margin + 3, y - 3, pageWidth - margin * 2 - 6, 9, 1, 1, 'F')
@@ -214,15 +217,15 @@ export function generateAnalysisPDF(analysis) {
       doc.text((i + 1) + '.', margin + 7, y + 3)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(0, 0, 0)
-      doc.text(condition, margin + 15, y + 3)
+      doc.text(cleanTestName(condition), margin + 15, y + 3)
       y += 10
     })
     space(4)
   }
 
   // Confidence Score
-  const confidence = analysis.ai?.confidence !== undefined
-    ? Math.round(analysis.ai.confidence * 100)
+  const confidence = ai.confidence !== undefined
+    ? Math.round(ai.confidence * 100)
     : 65
   doc.setFontSize(9)
   doc.setFont('helvetica', 'bold')
@@ -241,16 +244,38 @@ export function generateAnalysisPDF(analysis) {
   space(4)
 
   // ===== CLINICAL REASONING =====
-  if (analysis.ai?.clinical_reasoning) {
+  if (ai.clinical_reasoning) {
     title('Clinical Reasoning')
-    paragraph(analysis.ai.clinical_reasoning)
+    paragraph(ai.clinical_reasoning)
+    space(4)
+  }
+
+  // ===== ANALYSIS SUMMARY =====
+  if (ai.summary || ai.risk_explanation) {
+    title('Analysis Summary')
+    const summaryText = cleanTestName(ai.risk_explanation || ai.summary)
+    paragraph(summaryText)
+    space(4)
+  }
+
+  // ===== RECOMMENDATIONS =====
+  if (ai.recommendations?.length > 0) {
+    title('Recommendations')
+    ai.recommendations.forEach((rec, i) => {
+      checkPage(6)
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(30, 30, 30)
+      doc.text((i + 1) + '. ' + cleanTestName(rec), margin + 3, y)
+      y += 6
+    })
     space(4)
   }
 
   // ===== RECOMMENDED TESTS =====
   title('Recommended Diagnostic Tests')
-  const rawTests = analysis.ai?.suggested_tests?.length > 0
-    ? analysis.ai.suggested_tests
+  const rawTests = ai.suggested_tests?.length > 0
+    ? ai.suggested_tests
     : getDefaultTests(analysis)
   const tests = rawTests
     .filter(t => t && typeof t === 'string' && t.length > 0)
@@ -260,7 +285,7 @@ export function generateAnalysisPDF(analysis) {
 
   // ===== SPECIALIST REFERRAL =====
   title('Specialist Referral')
-  const specialist = analysis.ai?.recommended_specialist || 'General Physician'
+  const specialist = ai.recommended_specialist || 'General Physician'
   doc.setFillColor(240, 248, 255)
   doc.roundedRect(margin, y - 2, pageWidth - margin * 2, 14, 2, 2, 'F')
   doc.setFontSize(11)
@@ -269,26 +294,6 @@ export function generateAnalysisPDF(analysis) {
   doc.text('Recommended: ' + specialist, pageWidth / 2, y + 5, { align: 'center' })
   y += 16
   space(4)
-
-  // ===== RED FLAGS =====
-  if (analysis.ai?.red_flags?.length > 0) {
-    doc.setFillColor(255, 240, 240)
-    doc.roundedRect(margin, y, pageWidth - margin * 2, 12 + analysis.ai.red_flags.length * 7, 2, 2, 'F')
-    doc.setDrawColor(200, 0, 0)
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(180, 0, 0)
-    doc.text('⚠  CLINICAL ALERTS', margin + 4, y + 7)
-    y += 11
-    analysis.ai.red_flags.forEach(flag => {
-      checkPage(7)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(150, 0, 0)
-      doc.text('⚠  ' + flag, margin + 4, y)
-      y += 7
-    })
-    space(5)
-  }
 
   // ===== SIGNATURE LINE =====
   checkPage(40)

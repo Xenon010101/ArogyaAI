@@ -182,8 +182,15 @@ exports.analyze = async function(req, res, next) {
       if (aiResult.error === 'quota_exceeded') {
         console.warn('[ANALYZE] AI quota exceeded - using clinical logic fallback');
       }
+      if (aiResult.error === 'image_not_supported' && imageBase64) {
+        imageAnalysisFailed = true;
+        console.warn('[ANALYZE] Image analysis not supported - falling back to text-only');
+      }
     } catch (aiError) {
       console.error('[ANALYZE] AI failed:', aiError.message);
+      if (imageBase64) {
+        imageAnalysisFailed = true;
+      }
       aiResult = aiService.getSafeResponse();
     }
 

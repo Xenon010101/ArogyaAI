@@ -298,9 +298,9 @@ export default function Result() {
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold text-amber-900">Image Uploaded</p>
+              <p className="font-semibold text-amber-900">Image Uploaded - Text Analysis Used</p>
               <p className="text-sm text-amber-700 mt-1">
-                Image was uploaded but could not be processed by AI. The file is saved and available for doctor review.
+                Image was uploaded but the AI model doesn't support image analysis. Text-based analysis was performed instead. The image is saved for doctor review.
               </p>
             </div>
           </div>
