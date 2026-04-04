@@ -1,12 +1,14 @@
 const https = require('https');
 
 const GEMINI_API_VERSION = 'v1beta';
-const DEFAULT_MODEL = 'gemini-1.5-flash';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 function buildPrompt(symptoms, userContext, prescriptionText, fileDescriptions) {
   userContext = userContext || {};
   
-  let prompt = `You are ArogyaAI, a medical AI assistant. Analyze the patient's health information and provide specific medical conditions.
+  let prompt = `You are ArogyaAI, an advanced medical AI assistant. Your task is to analyze patient data and provide clinical assessment.
+
+CRITICAL: This analysis MUST factor in ALL provided data sources. Do NOT ignore any section.
 
 PATIENT CONTEXT:
 `;
@@ -20,19 +22,33 @@ PATIENT CONTEXT:
   const hasPrescription = prescriptionText && prescriptionText.trim().length > 0;
   const symptomsOnly = symptoms || 'No text symptoms provided';
 
+  if (hasPrescription) {
+    prompt += `
+===============================================================
+PRESCRIPTION/DOCUMENT ANALYSIS - HIGH PRIORITY SECTION
+===============================================================
+The following medications/conditions were found in prescriptions:
+${prescriptionText}
+
+This prescription data should DIRECTLY influence your diagnosis.
+Medications listed indicate EXISTING conditions being treated.
+For example:
+- Metformin → Patient has diabetes/blood sugar issues
+- Amlodipine/Atenolol/Lisinopril → Patient has hypertension/heart conditions
+- Omeprazole/Pantoprazole → Patient has acid reflux/GERD/gastritis
+- Atorvastatin/Rosuvastatin → Patient has high cholesterol
+- Levothyroxine → Patient has thyroid disorder
+- Salbutamol → Patient has asthma/breathing issues
+===============================================================
+
+`;
+  }
+
   prompt += `
 PATIENT-REPORTED SYMPTOMS:
 ${symptomsOnly}
 
 `;
-  
-  if (hasPrescription) {
-    prompt += `
-PRESCRIPTION/DOCUMENT INFORMATION:
-${prescriptionText}
-
-`;
-  }
   
   if (fileDescriptions && fileDescriptions.length > 0) {
     prompt += `
@@ -44,35 +60,40 @@ ${fileDescriptions.map((desc, i) => `File ${i + 1}: ${desc}`).join('\n')}
   prompt += `
 
 ANALYSIS TASK: 
-Analyze ALL information provided (symptoms AND prescription data) and return ONLY valid JSON (no markdown):
+Analyze ALL information provided and return ONLY valid JSON (no markdown):
+
 {
   "risk_level": "low|moderate|high|critical",
-  "risk_explanation": "Specific explanation based on symptoms, prescription data, and overall assessment",
-  "summary": "Brief clinical summary combining all data sources",
+  "risk_explanation": "Detailed explanation referencing BOTH symptoms AND prescription medications/conditions",
+  "summary": "Clinical summary that explicitly mentions how prescription data influenced the assessment",
   "possible_conditions": ["Condition 1", "Condition 2", "Condition 3"],
   "recommendations": ["Recommendation 1", "Recommendation 2"],
   "red_flags": [],
   "confidence_score": 0.7,
-  "clinical_reasoning": "How symptoms and prescription data led to this assessment",
-  "suggested_tests": ["Test 1" | null]
+  "clinical_reasoning": "Detailed reasoning explaining how symptoms AND prescription medications led to this diagnosis",
+  "suggested_tests": ["ECG", "Chest X-Ray", "CBC", "Lipid Profile"]
 }
 
-IMPORTANT:
-- If prescription shows medications/conditions, factor them into analysis
-- If prescription mentions diseases (diabetes, hypertension), consider related complications
-- If medications present, infer related conditions
-- Provide SPECIFIC conditions based on ALL available data
-- At least 3 possible conditions`;
+CRITICAL INSTRUCTIONS:
+- PRESCRIPTION DATA IS PRIMARY EVIDENCE - medications indicate pre-existing conditions
+- If prescription shows "metformin" → Diagnose Diabetes/High Blood Sugar FIRST
+- If prescription shows "amlodipine" or "atenolol" → Diagnose Hypertension/Heart Condition FIRST
+- If prescription shows "omeprazole" → Diagnose GERD/Acid Reflux/Gastritis
+- If prescription shows "atorvastatin" → Diagnose High Cholesterol/Cardiovascular Risk
+- List conditions related to prescribed medications at the TOP of possible_conditions
+- Combine symptom analysis with prescription evidence for accurate diagnosis
+- Return at least 3 possible conditions, with prescription-related conditions emphasized
+- Use CLEAN test names without spaces between letters (write "ECG" not "E C G", "CBC" not "C B C")
+- Do NOT use special formatting, unicode characters, or spaced lettering in any field`;
 
   return prompt;
 }
 
-function makeRequest(url, body) {
+function makeRequest(body) {
   return new Promise(function(resolve, reject) {
-    const urlObj = require('url').parse(url);
     const options = {
-      hostname: urlObj.hostname,
-      path: urlObj.path,
+      hostname: 'generativelanguage.googleapis.com',
+      path: '/v1beta/models/' + DEFAULT_MODEL + ':generateContent?key=' + process.env.GEMINI_API_KEY,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -111,18 +132,8 @@ function parseJson(text) {
   } catch (e) {
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
-      try { return JSON.parse(match[0]); } catch (e2) { 
-        const lines = match[0].split('\n');
-        const jsonPart = lines.slice(0, 30).join('\n');
-        try { return JSON.parse(jsonPart); } catch (e3) { return null; }
-      }
+      try { return JSON.parse(match[0]); } catch (e2) { return null; }
     }
-    
-    const tryExtract = text.match(/"possible_conditions"\s*:\s*\[(.*?)\]/i);
-    if (tryExtract) {
-      return { possible_conditions: tryExtract[1].split(',').map(s => s.trim().replace(/"/g, '')) };
-    }
-    
     return null;
   }
 }
@@ -154,14 +165,10 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
     return getSafeResponse();
   }
 
-  const model = imageData && attempt === 1 ? 'gemini-1.5-flash' : 'gemini-1.5-flash';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const model = DEFAULT_MODEL;
 
   console.log(`[Gemini] Using model: ${model}`);
   console.log(`[Gemini] Has image data:`, !!imageData);
-  if (imageData) {
-    console.log(`[Gemini] Image data size:`, imageData.data?.length || 0);
-  }
 
   let contents = [];
   
@@ -198,7 +205,7 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
   };
 
   try {
-    const response = await makeRequest(url, body);
+    const response = await makeRequest(body);
 
     if (response.status !== 200) {
       const errData = response.data;
@@ -213,44 +220,44 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
       console.error(`[Gemini] API Error ${response.status}:`, errMsg.substring(0, 500));
 
       const errLower = errMsg.toLowerCase();
-      const isImageError = imageData && (
-        errLower.includes('image') || 
-        errLower.includes('vision') || 
-        errLower.includes('unsupported') ||
-        errLower.includes('does not support') ||
-        errLower.includes('inline') ||
-        errLower.includes('not support') ||
-        errLower.includes('model') ||
-        errLower.includes('permission')
-      );
       
-      if (isImageError) {
-        console.warn('[Gemini] Image analysis failed, falling back to text-only...');
-        return analyzeWithGemini(prompt, null, 2);
+      if (response.status === 429 || errLower.includes('quota')) {
+        console.error('[Gemini] QUOTA EXCEEDED');
+        return {
+          risk_level: 'moderate',
+          risk_explanation: 'AI analysis unavailable due to API quota limits.',
+          summary: 'AI analysis temporarily unavailable due to quota limits.',
+          possible_conditions: ['Analysis pending - quota exceeded'],
+          recommendations: ['Please try again later'],
+          red_flags: ['AI quota exceeded'],
+          confidence_score: 0.3,
+          clinical_reasoning: 'AI analysis unavailable - quota exceeded.',
+          suggested_tests: null,
+          error: 'quota_exceeded'
+        };
       }
 
       if (attempt < 2) {
         return analyzeWithGemini(prompt, imageData, attempt + 1);
       }
-
       return getSafeResponse();
     }
 
     const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!text) {
-      console.error('[Gemini] Empty response, raw:', JSON.stringify(response.data).substring(0, 200));
+      console.error('[Gemini] Empty response');
       if (attempt < 2) {
         return analyzeWithGemini(prompt, imageData, attempt + 1);
       }
       return getSafeResponse();
     }
 
-    console.log('[Gemini] Analysis complete, response length:', text.length);
+    console.log('[Gemini] Response received, length:', text.length);
     const parsed = parseJson(text);
 
     if (!parsed || !parsed.risk_level) {
-      console.error('[Gemini] Invalid JSON or missing risk_level. Parsed:', parsed);
+      console.error('[Gemini] Invalid JSON or missing risk_level');
       if (attempt < 2) {
         return analyzeWithGemini(prompt, imageData, attempt + 1);
       }
@@ -264,22 +271,33 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
                           ['high', 'serious'].includes(riskLevel) ? 'high' :
                           ['moderate', 'medium'].includes(riskLevel) ? 'moderate' : 'low';
 
+    const cleanString = (str) => {
+      if (!str || typeof str !== 'string') return '';
+      return str
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/[\u00A0]/g, ' ')
+        .trim();
+    };
+
+    const cleanArray = (arr) => {
+      if (!Array.isArray(arr)) return [];
+      return arr
+        .filter(item => item && typeof item === 'string')
+        .map(item => cleanString(item));
+    };
+
     return {
       risk_level: normalizedRisk,
       risk_explanation: String(parsed.risk_explanation || parsed.summary || 'Analysis complete').substring(0, 400),
       summary: String(parsed.summary || parsed.risk_explanation || 'Analysis complete').substring(0, 200),
-      possible_conditions: Array.isArray(parsed.possible_conditions) && parsed.possible_conditions.length > 0 
-        ? parsed.possible_conditions.slice(0, 5) 
-        : ['General Illness', 'Viral Infection'],
-      recommendations: Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0 
-        ? parsed.recommendations.slice(0, 5) 
-        : ['Please consult a healthcare professional'],
-      red_flags: Array.isArray(parsed.red_flags) && parsed.red_flags.length > 0 ? parsed.red_flags.slice(0, 5) : [],
+      possible_conditions: cleanArray(parsed.possible_conditions).slice(0, 5) || ['General Illness', 'Viral Infection'],
+      recommendations: cleanArray(parsed.recommendations).slice(0, 5) || ['Please consult a healthcare professional'],
+      red_flags: cleanArray(parsed.red_flags).slice(0, 5),
       confidence_score: typeof parsed.confidence_score === 'number' 
         ? Math.max(0, Math.min(1, parsed.confidence_score)) 
         : 0.6,
       clinical_reasoning: parsed.clinical_reasoning || parsed.summary || 'Comprehensive analysis completed.',
-      suggested_tests: Array.isArray(parsed.suggested_tests) ? parsed.suggested_tests : null
+      suggested_tests: cleanArray(parsed.suggested_tests)
     };
 
   } catch (error) {
@@ -288,7 +306,6 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
     if (attempt < 2) {
       return analyzeWithGemini(prompt, imageData, attempt + 1);
     }
-
     return getSafeResponse();
   }
 }
@@ -329,7 +346,6 @@ async function analyzeSymptoms(symptoms, userContext, imageBase64, uploadedFiles
 
   console.log('[Gemini] Starting comprehensive analysis...');
   console.log('[Gemini] Text length:', symptoms.length);
-  console.log('[Gemini] Has image:', !!imageBase64);
   console.log('[Gemini] Has prescription text:', hasPrescription);
   console.log('[Gemini] Prescription text length:', hasPrescription ? prescriptionText.length : 0);
 

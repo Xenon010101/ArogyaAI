@@ -86,7 +86,8 @@ export function generateAnalysisPDF(analysis) {
     doc.setFontSize(size)
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(30, 30, 30)
-    doc.text('☐  ' + text, margin + 3, y)
+    const cleanText = cleanTestName(text)
+    doc.text('[_] ' + cleanText, margin + 3, y)
     y += 7
   }
 
@@ -248,9 +249,12 @@ export function generateAnalysisPDF(analysis) {
 
   // ===== RECOMMENDED TESTS =====
   title('Recommended Diagnostic Tests')
-  const tests = analysis.ai?.suggested_tests?.length > 0
+  const rawTests = analysis.ai?.suggested_tests?.length > 0
     ? analysis.ai.suggested_tests
     : getDefaultTests(analysis)
+  const tests = rawTests
+    .filter(t => t && typeof t === 'string' && t.length > 0)
+    .map(t => cleanTestName(t))
   tests.forEach(test => checkbox(test))
   space(4)
 
@@ -312,6 +316,24 @@ export function generateAnalysisPDF(analysis) {
   doc.text('ArogyaAI Medical Analysis System  |  Report ID: ' + (analysis._id || '').substring(0, 12), pageWidth / 2, pageHeight - 6, { align: 'center' })
 
   return doc
+}
+
+function cleanTestName(text) {
+  if (!text || typeof text !== 'string') return ''
+  return text
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[\u00A0]/g, ' ')
+    .replace(/\u2018|\u2019/g, "'")
+    .replace(/\u201C|\u201D/g, '"')
+    .replace(/\u2026/g, '...')
+    .trim()
 }
 
 function getRiskReason(analysis) {

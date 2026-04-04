@@ -29,6 +29,17 @@ function formatDate(dateValue) {
   }
 }
 
+function cleanText(text) {
+  if (!text || typeof text !== 'string') return ''
+  return text
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/[\u00A0]/g, ' ')
+    .trim()
+}
+
 const specialistMapping = {
   chest_pain: 'Cardiologist',
   stroke: 'Neurologist',
@@ -466,7 +477,7 @@ export default function Result() {
                       <div className="w-6 h-6 bg-cyan-100 rounded-full flex items-center justify-center text-xs font-bold text-cyan-600">
                         {i + 1}
                       </div>
-                      <span className="text-gray-700">{test}</span>
+                      <span className="text-gray-700">{cleanText(test)}</span>
                     </div>
                   ))}
                 </div>

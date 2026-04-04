@@ -40,37 +40,142 @@ const symptomConditionMapping = {
 };
 
 const prescriptionConditionMapping = {
+  // Diabetes medications
   metformin: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar Management'],
+  metformin_hcl: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
+  glucophage: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
+  glycomet: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
+  ciomet: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
   insulin: ['Diabetes', 'Type 1 Diabetes', 'Blood Sugar Control'],
+  humulin: ['Diabetes', 'Blood Sugar Control'],
+  mixtard: ['Diabetes', 'Blood Sugar Control'],
+  novomix: ['Diabetes', 'Blood Sugar Control'],
+  glimepiride: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
+  glipizide: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
+  glyburide: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
+  sitagliptin: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
+  vildagliptin: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
+  
+  // Blood Pressure / Cardiac medications
   amlodipine: ['Hypertension', 'High Blood Pressure', 'Cardiac Condition'],
+  norvasc: ['Hypertension', 'High Blood Pressure', 'Cardiac Condition'],
   atenolol: ['Hypertension', 'Heart Condition', 'Arrhythmia'],
+  tenormin: ['Hypertension', 'Heart Condition', 'Arrhythmia'],
   lisinopril: ['Hypertension', 'Heart Failure', 'Kidney Protection'],
-  omeprazole: ['Gastritis', 'GERD', 'Acid Reflux'],
-  pantoprazole: ['Gastritis', 'Peptic Ulcer', 'Acid Reflux'],
-  levothyroxine: ['Hypothyroidism', 'Thyroid Disorder', 'Metabolic Issue'],
+  zestril: ['Hypertension', 'Heart Failure', 'Cardiac Condition'],
+  losartan: ['Hypertension', 'High Blood Pressure', 'Cardiac Protection'],
+  cozaar: ['Hypertension', 'High Blood Pressure', 'Cardiac Protection'],
+  valsartan: ['Hypertension', 'Heart Failure', 'Cardiac Condition'],
+  diovan: ['Hypertension', 'Heart Failure', 'Cardiac Condition'],
+  metoprolol: ['Hypertension', 'Heart Condition', 'Arrhythmia'],
+  betaloc: ['Hypertension', 'Heart Condition', 'Arrhythmia'],
+  carvedilol: ['Hypertension', 'Heart Failure', 'Cardiac Condition'],
+  rampril: ['Hypertension', 'Heart Failure', 'Kidney Protection'],
+  
+  // Cholesterol medications
   atorvastatin: ['High Cholesterol', 'Cardiovascular Disease', 'Hyperlipidemia'],
+  lipitor: ['High Cholesterol', 'Cardiovascular Disease', 'Hyperlipidemia'],
   rosuvastatin: ['High Cholesterol', 'Cardiovascular Risk', 'Hyperlipidemia'],
-  amoxicillin: ['Bacterial Infection', 'Respiratory Infection', 'UTI'],
-  azithromycin: ['Bacterial Infection', 'Respiratory Infection', 'STI'],
-  paracetamol: ['Pain', 'Fever', 'General Discomfort'],
-  acetaminophen: ['Pain', 'Fever', 'General Discomfort'],
-  ibuprofen: ['Inflammation', 'Pain', 'Fever'],
-  aspirin: ['Pain', 'Fever', 'Cardiovascular Prevention'],
-  diclofenac: ['Inflammation', 'Pain', 'Arthritis'],
-  naproxen: ['Inflammation', 'Pain', 'Arthritis'],
-  salbutamol: ['Asthma', 'Bronchospasm', 'Breathing Difficulty'],
-  cetirizine: ['Allergies', 'Allergic Rhinitis', 'Histamine Reaction'],
-  loratadine: ['Allergies', 'Allergic Rhinitis', 'Histamine Reaction'],
+  crestor: ['High Cholesterol', 'Cardiovascular Risk', 'Hyperlipidemia'],
+  simvastatin: ['High Cholesterol', 'Cardiovascular Disease', 'Hyperlipidemia'],
+  zocor: ['High Cholesterol', 'Cardiovascular Disease', 'Hyperlipidemia'],
+  pravastatin: ['High Cholesterol', 'Cardiovascular Disease', 'Hyperlipidemia'],
+  
+  // Gastrointestinal medications
+  omeprazole: ['Gastritis', 'GERD', 'Acid Reflux', 'Peptic Ulcer'],
+  losec: ['Gastritis', 'GERD', 'Acid Reflux', 'Peptic Ulcer'],
+  pantoprazole: ['Gastritis', 'Peptic Ulcer', 'Acid Reflux', 'GERD'],
+  pan: ['Gastritis', 'Acid Reflux', 'GERD'],
+  esomeprazole: ['Gastritis', 'GERD', 'Acid Reflux', 'Peptic Ulcer'],
+  nexium: ['Gastritis', 'GERD', 'Acid Reflux', 'Peptic Ulcer'],
   ranitidine: ['Acid Reflux', 'GERD', 'Stomach Acid'],
+  zantac: ['Acid Reflux', 'GERD', 'Stomach Acid'],
   famotidine: ['Acid Reflux', 'GERD', 'Stomach Acid'],
   domperidone: ['Nausea', 'Gastritis', 'Digestive Issues'],
+  motilium: ['Nausea', 'Gastritis', 'Digestive Issues'],
   ondansetron: ['Nausea', 'Vomiting', 'Post-operative Nausea'],
+  zofran: ['Nausea', 'Vomiting', 'Post-operative Nausea'],
+  
+  // Thyroid medications
+  levothyroxine: ['Hypothyroidism', 'Thyroid Disorder', 'Metabolic Issue'],
+  thyronorm: ['Hypothyroidism', 'Thyroid Disorder', 'Metabolic Issue'],
+  eltroxin: ['Hypothyroidism', 'Thyroid Disorder', 'Metabolic Issue'],
+  synthroid: ['Hypothyroidism', 'Thyroid Disorder', 'Metabolic Issue'],
+  
+  // Respiratory medications
+  salbutamol: ['Asthma', 'Bronchospasm', 'Breathing Difficulty'],
+  ventolin: ['Asthma', 'Bronchospasm', 'Breathing Difficulty'],
+  asthalin: ['Asthma', 'Bronchospasm', 'Breathing Difficulty'],
+  asthmac: ['Asthma', 'Bronchospasm', 'Breathing Difficulty'],
+  budesonide: ['Asthma', 'Respiratory Inflammation', 'COPD'],
+  inhaler: ['Asthma', 'Breathing Difficulty'],
+  
+  // Pain/Inflammation medications
+  paracetamol: ['Pain', 'Fever', 'General Discomfort'],
+  acetaminophen: ['Pain', 'Fever', 'General Discomfort'],
+  crocin: ['Pain', 'Fever', 'General Discomfort'],
+  dolo: ['Pain', 'Fever', 'General Discomfort'],
+  ibuprofen: ['Inflammation', 'Pain', 'Fever'],
+  brufen: ['Inflammation', 'Pain', 'Fever'],
+  combiflam: ['Inflammation', 'Pain', 'Fever'],
+  aspirin: ['Pain', 'Fever', 'Cardiovascular Prevention'],
+  disprin: ['Pain', 'Fever', 'Cardiovascular Prevention'],
+  diclofenac: ['Inflammation', 'Pain', 'Arthritis'],
+  voveran: ['Inflammation', 'Pain', 'Arthritis'],
+  naproxen: ['Inflammation', 'Pain', 'Arthritis'],
   tramadol: ['Severe Pain', 'Chronic Pain', 'Pain Management'],
+  ultragel: ['Pain', 'Inflammation'],
+  
+  // Antibiotics
+  amoxicillin: ['Bacterial Infection', 'Respiratory Infection', 'UTI'],
+  augmentin: ['Bacterial Infection', 'Respiratory Infection'],
+  azithromycin: ['Bacterial Infection', 'Respiratory Infection', 'STI'],
+  zithromax: ['Bacterial Infection', 'Respiratory Infection'],
+  azee: ['Bacterial Infection', 'Respiratory Infection'],
+  ciprofloxacin: ['Bacterial Infection', 'UTI', 'Respiratory Infection'],
+  ciproflox: ['Bacterial Infection', 'UTI'],
+  cefixime: ['Bacterial Infection', 'UTI', 'Respiratory Infection'],
+  omnatax: ['Bacterial Infection', 'Respiratory Infection'],
+  ofloxacin: ['Bacterial Infection', 'UTI', 'Eye Infection'],
+  
+  // Allergy medications
+  cetirizine: ['Allergies', 'Allergic Rhinitis', 'Histamine Reaction'],
+  cetzine: ['Allergies', 'Allergic Rhinitis', 'Histamine Reaction'],
+  loratadine: ['Allergies', 'Allergic Rhinitis', 'Histamine Reaction'],
+  claritin: ['Allergies', 'Allergic Rhinitis', 'Histamine Reaction'],
+  allegra: ['Allergies', 'Allergic Rhinitis', 'Histamine Reaction'],
+  fexofenadine: ['Allergies', 'Allergic Rhinitis', 'Histamine Reaction'],
+  montelukast: ['Allergies', 'Asthma', 'Respiratory Allergy'],
+  montair: ['Allergies', 'Asthma', 'Respiratory Allergy'],
+  
+  // Mental Health medications
   gabapentin: ['Neuropathic Pain', 'Seizures', 'Nerve Pain'],
+  neurontin: ['Neuropathic Pain', 'Seizures', 'Nerve Pain'],
   sertraline: ['Depression', 'Anxiety', 'Mental Health'],
+  serlift: ['Depression', 'Anxiety', 'Mental Health'],
   fluoxetine: ['Depression', 'Anxiety', 'OCD'],
+  prozac: ['Depression', 'Anxiety', 'OCD'],
+  oxitriptal: ['Depression', 'Anxiety', 'Mental Health'],
+  clonazepam: ['Anxiety', 'Seizures', 'Panic Disorder'],
+  clonotril: ['Anxiety', 'Seizures', 'Panic Disorder'],
+  alprazolam: ['Anxiety', 'Panic Disorder'],
+  xanax: ['Anxiety', 'Panic Disorder'],
+  etizolaam: ['Anxiety', 'Panic Disorder'],
+  
+  // Nutritional supplements
   multivitamin: ['Nutritional Deficiency', 'General Health', 'Vitamin Deficiency'],
-  metformin_hcl: ['Diabetes', 'Type 2 Diabetes', 'Blood Sugar'],
+  b_complex: ['Nutritional Deficiency', 'Vitamin B Deficiency'],
+  vitamin_d: ['Vitamin D Deficiency', 'Bone Health'],
+  calcium: ['Calcium Deficiency', 'Bone Health'],
+  iron: ['Iron Deficiency', 'Anemia'],
+  ferric_iron: ['Iron Deficiency', 'Anemia'],
+  
+  // Neurological/Pain medications
+  pregabalin: ['Neuropathic Pain', 'Anxiety', 'Epilepsy'],
+  lyrica: ['Neuropathic Pain', 'Anxiety', 'Epilepsy'],
+  methylcobalamin: ['Neuropathy', 'Vitamin B12 Deficiency', 'Nerve Health'],
+  mefenamic_acid: ['Pain', 'Menstrual Pain', 'Inflammation'],
+  meftal: ['Pain', 'Menstrual Pain', 'Inflammation'],
 };
 
 const symptomRiskMapping = {
@@ -162,8 +267,24 @@ function analyzeSymptoms(symptoms, triageResult, prescriptionText) {
   if (normalizedPrescription.length > 0) {
     console.log('[ClinicalLogic] Analyzing prescription text:', normalizedPrescription.substring(0, 200));
 
+    // More robust medicine matching - case insensitive and handles variations
     for (const [medicine, relatedConditions] of Object.entries(prescriptionConditionMapping)) {
-      if (normalizedPrescription.includes(medicine)) {
+      const medicineLower = medicine.toLowerCase();
+      const medicineVariations = [medicineLower];
+      
+      // Add common variations
+      if (medicineLower.includes('_')) {
+        medicineVariations.push(medicineLower.replace(/_/g, ' '));
+        medicineVariations.push(medicineLower.replace(/_/g, '-'));
+      }
+      
+      // Check if any variation matches (case-insensitive)
+      const found = medicineVariations.some(v => {
+        return normalizedPrescription.includes(v) || 
+               normalizedPrescription.includes(v.replace(/-/g, ' '));
+      });
+      
+      if (found) {
         relatedConditions.forEach(c => {
           conditions.add(c);
           prescriptionConditions.push(c);
@@ -172,13 +293,39 @@ function analyzeSymptoms(symptoms, triageResult, prescriptionText) {
       }
     }
 
-    const knownConditions = ['diabetes', 'hypertension', 'thyroid', 'asthma', 'depression', 'anxiety', 'arthritis', 'cholesterol', 'cancer', 'heart disease'];
+    // Known conditions in prescription text
+    const knownConditions = [
+      'diabetes', 'hypertension', 'thyroid', 'asthma', 'depression', 
+      'anxiety', 'arthritis', 'cholesterol', 'cancer', 'heart disease',
+      'hypothyroidism', 'hyperthyroidism', 'gerd', 'gastritis', 'ulcer',
+      'anemia', 'bronchitis', 'pneumonia', 'migraine', 'neuropathy',
+      'insomnia', 'constipation', 'diarrhea', 'jaundice', 'hepatitis'
+    ];
     for (const condition of knownConditions) {
       if (normalizedPrescription.includes(condition)) {
         const condName = condition.charAt(0).toUpperCase() + condition.slice(1);
         conditions.add(condName);
         prescriptionConditions.push(condName);
         console.log('[ClinicalLogic] Found condition:', condName);
+      }
+    }
+    
+    // Check for dosage patterns that indicate chronic conditions
+    const chronicPatterns = [
+      { pattern: /daily|every day|od\b/i, conditions: ['Chronic Condition', 'Long-term Treatment'] },
+      { pattern: /twice daily|bd|bid/i, conditions: ['Chronic Condition', 'Long-term Treatment'] },
+      { pattern: /take at bedtime|hs|nocte/i, conditions: ['Chronic Condition', 'Long-term Treatment'] },
+      { pattern: /chronic|ongoing|long.term/i, conditions: ['Chronic Condition', 'Long-term Treatment'] },
+    ];
+    
+    for (const { pattern, conditions: condList } of chronicPatterns) {
+      if (pattern.test(normalizedPrescription)) {
+        condList.forEach(c => {
+          conditions.add(c);
+          prescriptionConditions.push(c);
+        });
+        console.log('[ClinicalLogic] Found chronic condition indicator');
+        break;
       }
     }
   }

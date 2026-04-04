@@ -179,6 +179,9 @@ exports.analyze = async function(req, res, next) {
     try {
       aiResult = await aiService.analyzeSymptoms(combinedInputText, userContext, imageBase64, allFiles, extractedPrescriptionText);
       console.log('[ANALYZE] AI result received:', aiResult.risk_level);
+      if (aiResult.error === 'quota_exceeded') {
+        console.warn('[ANALYZE] AI quota exceeded - using clinical logic fallback');
+      }
     } catch (aiError) {
       console.error('[ANALYZE] AI failed:', aiError.message);
       aiResult = aiService.getSafeResponse();
@@ -186,9 +189,12 @@ exports.analyze = async function(req, res, next) {
 
     const combinedRiskLevel = determineCombinedRisk(triageResult, aiResult, symptoms);
     
-    const aiConditions = aiResult.possible_conditions || [];
+    let aiConditions = aiResult.possible_conditions || [];
+    if (aiResult.error === 'quota_exceeded') {
+      aiConditions = [];
+    }
     const validAiConditions = aiConditions.filter(c => 
-      c && typeof c === 'string' && c.length > 3
+      c && typeof c === 'string' && c.length > 3 && !c.includes('quota')
     );
     
     const finalConditions = validAiConditions.length > 0
