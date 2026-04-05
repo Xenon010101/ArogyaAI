@@ -5,6 +5,7 @@ const aiService = require('../services/aiService');
 const { processUploadedFiles } = require('../services/fileService');
 const hfService = require('../services/huggingfaceService');
 const clinicalLogic = require('../services/clinicalLogic');
+const drugInteractionService = require('../services/drugInteractionService');
 
 function determineCombinedRisk(triageResult, aiResult, symptoms) {
   if (!triageResult || !aiResult) return 'moderate';
@@ -195,6 +196,24 @@ exports.analyze = async function(req, res, next) {
     console.log('[ANALYZE] Symptoms length:', symptoms.length);
     console.log('[ANALYZE] Prescription text length:', extractedPrescriptionText.length);
 
+    // Check for drug interactions from prescription
+    let drugInteractionResult = null;
+    if (extractedPrescriptionText && extractedPrescriptionText.length > 10) {
+      console.log('[ANALYZE] Checking for drug interactions...');
+      try {
+        const extractedMeds = clinicalLogic.extractMedicinesFromText(extractedPrescriptionText);
+        if (extractedMeds && extractedMeds.length >= 2) {
+          console.log('[ANALYZE] Found medicines in prescription:', extractedMeds.join(', '));
+          drugInteractionResult = await drugInteractionService.checkDrugInteractions(extractedMeds);
+          if (drugInteractionResult) {
+            console.log('[ANALYZE] Drug interaction check result:', drugInteractionResult.hasInteractions ? 'interactions found' : 'no interactions');
+          }
+        }
+      } catch (interactionError) {
+        console.warn('[ANALYZE] Drug interaction check failed:', interactionError.message);
+      }
+    }
+
     // Analyze symptoms
     const symptomsAnalysis = clinicalLogic.analyzeSymptoms(combinedInputText || symptoms || '', triageResult, extractedPrescriptionText);
     console.log('[ANALYZE] Symptoms analysis:', JSON.stringify(symptomsAnalysis));
@@ -284,7 +303,14 @@ exports.analyze = async function(req, res, next) {
       red_flags: clinicalLogic.generateRedFlags(combinedRiskLevel, symptomsAnalysis),
       confidence: finalConfidence,
       detected_symptoms: symptomsAnalysis.detectedSymptoms,
-      recommended_specialist: clinicalLogic.recommendSpecialist(combinedInputText, triageResult, combinedRiskLevel)
+      recommended_specialist: clinicalLogic.recommendSpecialist(combinedInputText, triageResult, combinedRiskLevel),
+      drug_interactions: drugInteractionResult ? {
+        has_interactions: drugInteractionResult.hasInteractions,
+        has_high_severity: drugInteractionResult.hasHighSeverity,
+        interactions: drugInteractionResult.interactions || [],
+        summary: drugInteractionResult.summary,
+        checked_medicines: drugInteractionResult.checkedMedicines || []
+      } : null
     };
 
     const analysis = await Analysis.create({
@@ -295,6 +321,7 @@ exports.analyze = async function(req, res, next) {
       combinedRiskLevel,
       files: allFiles,
       userContext,
+      drugInteractions: drugInteractionResult,
       status: 'completed',
     });
 
@@ -316,6 +343,7 @@ exports.analyze = async function(req, res, next) {
       prescriptionImageBased: prescriptionImageBased,
       prescriptionAnalyzed: prescriptionExtracted || prescriptionImageBased,
       extractedPrescriptionText: extractedPrescriptionText.length > 0 ? extractedPrescriptionText.substring(0, 500) : null,
+      drugInteractions: drugInteractionResult
     };
 
     res.status(201).json({
