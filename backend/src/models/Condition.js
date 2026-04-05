@@ -5,7 +5,6 @@ const conditionSchema = new mongoose.Schema(
     icdCode: {
       type: String,
       required: true,
-      index: true,
     },
     icdCodeFull: {
       type: String,

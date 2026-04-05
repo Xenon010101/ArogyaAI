@@ -582,6 +582,82 @@ function capitalizeFirst(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+const KNOWN_MEDICINES = [
+  // Diabetes
+  'metformin', 'glucophage', 'glycomet', 'ciomet', 'insulin', 'humulin', 'mixtard', 'novomix',
+  'glimepiride', 'amaryl', 'glipizide', 'glyburide', 'sitagliptin', 'januvia', 'vildagliptin',
+  // Blood Pressure / Cardiac
+  'amlodipine', 'norvasc', 'amlodin', 'amlip', 'atenolol', 'tenormin', 'lisinopril', 'zestril',
+  'losartan', 'cozaar', 'losacar', 'valsartan', 'diovan', 'metoprolol', 'betaloc', 'metolar',
+  'carvedilol', 'rampril', 'ramipril', 'enalapril', 'atenol', 'beta',
+  // Cholesterol
+  'atorvastatin', 'lipitor', 'atorva', 'lipikind', 'rosuvastatin', 'crestor', 'rosuvas', 'rozat',
+  'simvastatin', 'zocor', 'simva', 'simbax', 'pravastatin',
+  // Gastrointestinal
+  'omeprazole', 'losec', 'omez', 'omed', 'pantoprazole', 'pan', 'pantocid', 'pantosec',
+  'esomeprazole', 'nexium', 'esoz', 'sompraz', 'ranitidine', 'zantac', 'rantac', 'aciloc',
+  'famotidine', 'domperidone', 'motilium', 'domstal', 'dompy', 'ondansetron', 'zofran', 'ondem', 'emese',
+  'dicyclomine', 'cyclomin', 'spasmo', 'mefenamic', 'meftal', 'nimesulide', 'nise', 'nimulid',
+  // Thyroid
+  'levothyroxine', 'thyronorm', 'eltroxin', 'thyobuild',
+  // Respiratory
+  'salbutamol', 'ventolin', 'asthalin', 'asthmac', 'budesonide', 'pulmicort', 'budecort',
+  'montelukast', 'singulair', 'montair', 'montukast', 'seretide', 'symbicort', 'duolin',
+  // Pain / Anti-inflammatory
+  'paracetamol', 'crocin', 'dolo', 'calpol', 'acetaminophen', 'ibuprofen', 'brufen', 'ibugard', 'advil',
+  'aspirin', 'disprin', 'ecosprin', 'diclofenac', 'voveran', 'diclotal', 'cataflam',
+  'tramadol', 'ultram', 'dolol', 'naproxen', 'etoricoxib', 'nurofen',
+  // Antibiotics
+  'amoxicillin', 'augmentin', 'mox', 'amoxil', 'azithromycin', 'zithromax', 'azee', 'azithral',
+  'ciprofloxacin', 'cipro', 'cifran', 'ciplox', 'cefixime', 'omnatax', 'taxim-o', 'cefi',
+  'doxycycline', 'monodox', 'erythromycin', 'roxithromycin', 'roxee', 'roxim', 'rox',
+  'metronidazole', 'flagyl', 'metrogyl', 'metron', 'cephalexin', 'keflex', 'alex', 'cefax',
+  // Allergy
+  'cetirizine', 'cetzine', 'citriz', 'allercet', 'loratadine', 'claritin', 'loratin', 'lora',
+  'desloratadine', 'deslor', 'fexofenadine', 'montemac', 'levocetirizine', 'lcz',
+  // Mental Health
+  'sertraline', 'zoloft', 'sertil', 'serlift', 'fluoxetine', 'prozac', 'fludac', 'oxedep',
+  'alprazolam', 'xanax', 'alpra', 'zopic', 'clonazepam', 'rivotril', 'clonotril', 'klonopin',
+  'escitalopram', 'cipralex', 'estomine', 'paroxetine', 'paxil', 'quetiapine', 'seroquel',
+  // Steroids / Anti-inflammatory
+  'prednisolone', 'prednisone', 'wysolone', 'dermacort', 'dexamethasone', 'decadron', 'dexona',
+  // Diuretics
+  'furosemide', 'lasix', 'frusemide', 'lasipad', 'spironolactone', 'aldactone', 'spilactone',
+  // Neurological
+  'gabapentin', 'neurontin', 'gabapin', 'gabantin', 'pregabalin', 'lyrica', 'pregabid',
+  'topiramate', 'topamax', 'divolife', 'carbamazepine', 'tegretol', 'zeptol',
+  // Supplements
+  'multivitamin', 'shelcal', 'supradyn', 'becosules', 'calcium', 'caldige', 'magne',
+  'vitamin d', 'cholecalciferol', 'uprise d3', 'd-rise', 'dycal',
+  'ferrous', 'ferrous sulfate', 'fecontin', 'ferro', 'ferronyl', 'iron',
+  'folic acid', 'folvite', 'folic', 'vitamin b12', 'cobalamin', 'neurobion',
+  // Eye drops
+  'latanoprost', 'xalatan', 'latan', 'timolol', 'timoptic', 'bromfenac', 'instacy',
+  // Others
+  'warfarin', 'coumadin', 'clopidogrel', 'plavix', 'hydrochlorothiazide', 'hctz', 'dytor',
+  'tamsulosin', 'flomax', 'urinimax', 'sildenafil', 'viagra', 'silagra', 'caverta',
+  'tadalafil', 'cialis', 'tadalis', 'allopurinol', 'zilfic', 'zyloric', 'urimax'
+];
+
+function extractMedicinesFromText(text) {
+  if (!text || typeof text !== 'string') return [];
+  
+  const normalizedText = text.toLowerCase();
+  const found = [];
+  
+  for (const med of KNOWN_MEDICINES) {
+    const regex = new RegExp(`\\b${med}\\b`, 'i');
+    if (regex.test(normalizedText)) {
+      const capitalized = med.charAt(0).toUpperCase() + med.slice(1);
+      if (!found.includes(capitalized)) {
+        found.push(capitalized);
+      }
+    }
+  }
+  
+  return found;
+}
+
 module.exports = {
   analyzeSymptoms,
   generateClinicalReasoning,
@@ -593,6 +669,7 @@ module.exports = {
   getConfidenceText,
   getConfidenceLabel,
   recommendSpecialist,
+  extractMedicinesFromText,
   symptomConditionMapping,
   symptomRiskMapping,
   prescriptionConditionMapping

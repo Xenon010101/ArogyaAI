@@ -4,8 +4,6 @@ const medicineSchema = new mongoose.Schema(
   {
     rxcui: {
       type: String,
-      sparse: true,
-      index: true,
     },
     name: {
       type: String,
