@@ -2,7 +2,8 @@ const Analysis = require('../models/Analysis');
 const ApiError = require('../utils/ApiError');
 const triageService = require('../services/triageService');
 const aiService = require('../services/aiService');
-const { processUploadedFiles, processPrescriptionsForAnalysis } = require('../services/fileService');
+const { processUploadedFiles } = require('../services/fileService');
+const hfService = require('../services/huggingfaceService');
 const clinicalLogic = require('../services/clinicalLogic');
 
 function determineCombinedRisk(triageResult, aiResult, symptoms) {
@@ -97,30 +98,60 @@ exports.analyze = async function(req, res, next) {
     
     console.log('[ANALYZE] After processing - Images:', processedFiles.images.length, 'Prescriptions:', processedFiles.prescriptions.length);
 
-    // Process prescriptions
+    // Process prescriptions with Hugging Face OCR
     let extractedPrescriptionText = '';
     let prescriptionExtracted = false;
     let prescriptionImageBased = false;
     let prescriptionFilesCount = processedFiles.prescriptions?.length || 0;
+    let hfOcrUsed = false;
     
     if (prescriptionFilesCount > 0) {
-      console.log('[ANALYZE] Processing', prescriptionFilesCount, 'prescription files...');
-      try {
-        const prescriptionData = await processPrescriptionsForAnalysis(processedFiles.prescriptions);
+      console.log('[ANALYZE] Processing', prescriptionFilesCount, 'prescription files with Hugging Face OCR...');
+      
+      const allPrescriptionTexts = [];
+      
+      for (const prescFile of processedFiles.prescriptions) {
+        console.log('[ANALYZE] Processing prescription:', prescFile.originalName);
         
-        if (prescriptionData.extractedTexts && prescriptionData.extractedTexts.length > 0) {
-          extractedPrescriptionText = prescriptionData.combinedText || '';
-          prescriptionExtracted = extractedPrescriptionText.length > 0;
-          prescriptionImageBased = prescriptionData.hasImageBasedPDF || false;
+        try {
+          // Try Hugging Face OCR first
+          const hfResult = await hfService.processPrescriptionFile(prescFile.path);
           
-          console.log('[ANALYZE] Prescription text length:', extractedPrescriptionText.length);
-          if (prescriptionExtracted) {
-            console.log('[ANALYZE] Prescription text extracted successfully!');
-            console.log('[ANALYZE] Text preview:', extractedPrescriptionText.substring(0, 100));
+          if (hfResult && hfResult.success && hfResult.text) {
+            allPrescriptionTexts.push(hfResult.text);
+            hfOcrUsed = true;
+            console.log('[ANALYZE] HF OCR extracted', hfResult.text.length, 'chars using', hfResult.model);
+          } else if (hfResult && hfResult.text) {
+            // HF returned text but not full extraction
+            if (hfResult.text.length > 10) {
+              allPrescriptionTexts.push(hfResult.text);
+              console.log('[ANALYZE] HF returned partial text:', hfResult.text.length, 'chars');
+            }
           }
+        } catch (hfError) {
+          console.warn('[ANALYZE] HF OCR failed for', prescFile.originalName, ':', hfError.message);
         }
-      } catch (prescError) {
-        console.warn('[ANALYZE] Prescription extraction failed:', prescError.message);
+      }
+      
+      if (allPrescriptionTexts.length > 0) {
+        extractedPrescriptionText = allPrescriptionTexts.join('\n\n---\n\n');
+        prescriptionExtracted = extractedPrescriptionText.length > 0;
+        console.log('[ANALYZE] Combined prescription text length:', extractedPrescriptionText.length);
+        console.log('[ANALYZE] Text preview:', extractedPrescriptionText.substring(0, 150) + '...');
+      } else {
+        // Fallback to fileService if HF fails
+        console.log('[ANALYZE] HF OCR did not extract text, trying fallback...');
+        try {
+          const { processPrescriptionsForAnalysis } = require('../services/fileService');
+          const prescriptionData = await processPrescriptionsForAnalysis(processedFiles.prescriptions);
+          if (prescriptionData.extractedTexts && prescriptionData.extractedTexts.length > 0) {
+            extractedPrescriptionText = prescriptionData.combinedText || '';
+            prescriptionExtracted = extractedPrescriptionText.length > 0;
+            prescriptionImageBased = prescriptionData.hasImageBasedPDF || false;
+          }
+        } catch (fallbackError) {
+          console.warn('[ANALYZE] Fallback prescription extraction also failed:', fallbackError.message);
+        }
       }
     }
 

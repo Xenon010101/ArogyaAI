@@ -60,31 +60,16 @@ ${fileDescriptions.map((desc, i) => `File ${i + 1}: ${desc}`).join('\n')}
   prompt += `
 
 ANALYSIS TASK: 
-Analyze ALL information provided and return ONLY valid JSON (no markdown):
+Analyze ALL information provided and return ONLY valid JSON. No markdown, no code blocks, no explanations. Just pure JSON:
 
-{
-  "risk_level": "low|moderate|high|critical",
-  "risk_explanation": "Detailed explanation referencing BOTH symptoms AND prescription medications/conditions",
-  "summary": "Clinical summary that explicitly mentions how prescription data influenced the assessment",
-  "possible_conditions": ["Condition 1", "Condition 2", "Condition 3"],
-  "recommendations": ["Recommendation 1", "Recommendation 2"],
-  "red_flags": [],
-  "confidence_score": 0.7,
-  "clinical_reasoning": "Detailed reasoning explaining how symptoms AND prescription medications led to this diagnosis",
-  "suggested_tests": ["ECG", "Chest X-Ray", "CBC", "Lipid Profile"]
-}
+{"risk_level":"moderate","risk_explanation":"Your explanation here","summary":"Summary here","possible_conditions":["Condition 1","Condition 2","Condition 3"],"recommendations":["Rec 1","Rec 2"],"red_flags":[],"confidence_score":0.7,"clinical_reasoning":"Reasoning here","suggested_tests":["CBC","X-Ray"]}
 
-CRITICAL INSTRUCTIONS:
-- PRESCRIPTION DATA IS PRIMARY EVIDENCE - medications indicate pre-existing conditions
-- If prescription shows "metformin" → Diagnose Diabetes/High Blood Sugar FIRST
-- If prescription shows "amlodipine" or "atenolol" → Diagnose Hypertension/Heart Condition FIRST
-- If prescription shows "omeprazole" → Diagnose GERD/Acid Reflux/Gastritis
-- If prescription shows "atorvastatin" → Diagnose High Cholesterol/Cardiovascular Risk
-- List conditions related to prescribed medications at the TOP of possible_conditions
-- Combine symptom analysis with prescription evidence for accurate diagnosis
-- Return at least 3 possible conditions, with prescription-related conditions emphasized
-- Use CLEAN test names without spaces between letters (write "ECG" not "E C G", "CBC" not "C B C")
-- Do NOT use special formatting, unicode characters, or spaced lettering in any field`;
+IMPORTANT:
+- Response must be ONLY valid JSON starting with { and ending with }
+- Do NOT include any text before or after the JSON
+- If you include markdown or text, the response will fail
+- PRESCRIPTION DATA IS KEY: Amlodipine/Atorvastatin = Hypertension/Heart issues
+- List prescription-related conditions FIRST in possible_conditions`;
 
   return prompt;
 }
@@ -124,18 +109,87 @@ function parseJson(text) {
   if (!text) return null;
   
   let cleaned = text.trim();
+  
+  // Remove markdown code blocks
   cleaned = cleaned.replace(/^```json\s*/gi, '').replace(/^```\s*/gi, '').replace(/\s*```$/gi, '');
   cleaned = cleaned.trim();
-
+  
+  // Try direct parse first
   try {
     return JSON.parse(cleaned);
   } catch (e) {
+    // Try to find JSON object in the text
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
-      try { return JSON.parse(match[0]); } catch (e2) { return null; }
+      try { 
+        return JSON.parse(match[0]); 
+      } catch (e2) {
+        // Try to fix common issues
+        let fixed = match[0];
+        // Fix missing quotes around keys
+        fixed = fixed.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+        // Fix single quotes to double quotes
+        fixed = fixed.replace(/'/g, '"');
+        // Try parsing fixed version
+        try { return JSON.parse(fixed); } catch (e3) {}
+      }
     }
+    
+    // Try extracting just the conditions array
+    const conditionsMatch = cleaned.match(/"possible_conditions"\s*:\s*\[(.*?)\]/i);
+    if (conditionsMatch) {
+      try {
+        const conditions = conditionsMatch[1].match(/"([^"]+)"/g)?.map(c => c.replace(/"/g, '')) || [];
+        return { possible_conditions: conditions, risk_level: 'moderate' };
+      } catch (e4) {}
+    }
+    
     return null;
   }
+}
+
+function extractPartialInfo(text) {
+  if (!text) return null;
+  
+  const result = {
+    risk_level: 'moderate',
+    risk_explanation: 'AI analysis completed with partial information.',
+    summary: 'Analysis completed based on available data.',
+    possible_conditions: [],
+    recommendations: ['Consult a healthcare professional'],
+    red_flags: [],
+    confidence_score: 0.5,
+    clinical_reasoning: 'Analysis completed with limited AI response.',
+    suggested_tests: null
+  };
+  
+  // Extract conditions
+  const conditionsMatch = text.match(/possible_conditions["\s:]+(\[[\s\S]*?\])/i) || text.match(/conditions["\s:]+(\[[\s\S]*?\])/i);
+  if (conditionsMatch) {
+    try {
+      const conditionsStr = conditionsMatch[1];
+      const conditions = conditionsStr.match(/"([^"]+)"/g)?.map(c => c.replace(/"/g, '')) || [];
+      if (conditions.length > 0) {
+        result.possible_conditions = conditions.slice(0, 5);
+      }
+    } catch (e) {}
+  }
+  
+  // Extract risk level
+  const riskMatch = text.match(/risk_level["\s:]+"?([^}",\n]+)"?/i);
+  if (riskMatch) {
+    const risk = riskMatch[1].trim().toLowerCase();
+    if (['critical', 'high', 'moderate', 'low'].includes(risk)) {
+      result.risk_level = risk;
+    }
+  }
+  
+  // If we couldn't extract anything useful, return null
+  if (result.possible_conditions.length === 0) {
+    return null;
+  }
+  
+  return result;
 }
 
 function getSafeResponse() {
@@ -286,12 +340,20 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
     }
 
     console.log('[Gemini] Response received, length:', text.length);
+    console.log('[Gemini] Response preview:', text.substring(0, 300));
     const parsed = parseJson(text);
 
     if (!parsed || !parsed.risk_level) {
       console.error('[Gemini] Invalid JSON or missing risk_level');
+      console.error('[Gemini] Raw response:', text.substring(0, 500));
       if (attempt < 2) {
         return analyzeWithGemini(prompt, imageData, attempt + 1);
+      }
+      // Try to extract partial info from the response
+      const partialResult = extractPartialInfo(text);
+      if (partialResult) {
+        console.log('[Gemini] Using partial result from response');
+        return partialResult;
       }
       return getSafeResponse();
     }
