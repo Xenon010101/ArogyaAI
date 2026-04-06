@@ -62,14 +62,15 @@ ${fileDescriptions.map((desc, i) => `File ${i + 1}: ${desc}`).join('\n')}
 ANALYSIS TASK: 
 Analyze ALL information provided and return ONLY valid JSON. No markdown, no code blocks, no explanations. Just pure JSON:
 
-{"risk_level":"moderate","risk_explanation":"Your explanation here","summary":"Summary here","possible_conditions":["Condition 1","Condition 2","Condition 3"],"recommendations":["Rec 1","Rec 2"],"red_flags":[],"confidence_score":0.7,"clinical_reasoning":"Reasoning here","suggested_tests":["CBC","X-Ray"]}
+{"risk_level":"moderate","risk_explanation":"Your explanation here","summary":"Summary here","possible_conditions":["Condition 1","Condition 2","Condition 3"],"recommendations":["Rec 1","Rec 2"],"red_flags":[],"confidence_score":0.7,"clinical_reasoning":"Reasoning here","suggested_tests":["CBC","X-Ray"],"detected_medicines":["Metformin","Amlodipine"]}
 
 IMPORTANT:
 - Response must be ONLY valid JSON starting with { and ending with }
 - Do NOT include any text before or after the JSON
 - If you include markdown or text, the response will fail
 - PRESCRIPTION DATA IS KEY: Amlodipine/Atorvastatin = Hypertension/Heart issues
-- List prescription-related conditions FIRST in possible_conditions`;
+- List prescription-related conditions FIRST in possible_conditions
+- Include detected_medicines: medicines found in prescriptions (e.g., Metformin, Ecosprin, Atorvastatin, Metoprolol, Sorbitrate)`;
 
   return prompt;
 }
@@ -206,7 +207,8 @@ function getSafeResponse() {
     red_flags: [],
     confidence_score: 0.5,
     clinical_reasoning: 'A comprehensive analysis requires professional medical examination. This AI assessment is for informational purposes only.',
-    suggested_tests: null
+    suggested_tests: null,
+    detected_medicines: []
   };
 }
 

@@ -196,24 +196,6 @@ exports.analyze = async function(req, res, next) {
     console.log('[ANALYZE] Symptoms length:', symptoms.length);
     console.log('[ANALYZE] Prescription text length:', extractedPrescriptionText.length);
 
-    // Check for drug interactions from prescription
-    let drugInteractionResult = null;
-    if (extractedPrescriptionText && extractedPrescriptionText.length > 10) {
-      console.log('[ANALYZE] Checking for drug interactions...');
-      try {
-        const extractedMeds = clinicalLogic.extractMedicinesFromText(extractedPrescriptionText);
-        if (extractedMeds && extractedMeds.length >= 2) {
-          console.log('[ANALYZE] Found medicines in prescription:', extractedMeds.join(', '));
-          drugInteractionResult = await drugInteractionService.checkDrugInteractions(extractedMeds);
-          if (drugInteractionResult) {
-            console.log('[ANALYZE] Drug interaction check result:', drugInteractionResult.hasInteractions ? 'interactions found' : 'no interactions');
-          }
-        }
-      } catch (interactionError) {
-        console.warn('[ANALYZE] Drug interaction check failed:', interactionError.message);
-      }
-    }
-
     // Analyze symptoms
     const symptomsAnalysis = clinicalLogic.analyzeSymptoms(combinedInputText || symptoms || '', triageResult, extractedPrescriptionText);
     console.log('[ANALYZE] Symptoms analysis:', JSON.stringify(symptomsAnalysis));
@@ -242,6 +224,32 @@ exports.analyze = async function(req, res, next) {
         imageAnalysisFailed = true;
       }
       aiResult = aiService.getSafeResponse();
+    }
+
+    // Check drug interactions after AI analysis (from both PDF text and AI-detected medicines)
+    let drugInteractionResult = null;
+    const hasPrescriptionContent = extractedPrescriptionText?.length > 10 || prescriptionFilesCount > 0;
+    if (hasPrescriptionContent) {
+      console.log('[ANALYZE] Checking for drug interactions...');
+      try {
+        const medsFromPdf = clinicalLogic.extractMedicinesFromText(extractedPrescriptionText);
+        const medsFromAi = aiResult.detected_medicines || [];
+        const allMeds = [...new Set([...medsFromPdf, ...medsFromAi])];
+        
+        if (allMeds.length >= 2) {
+          console.log('[ANALYZE] Medicines found:', allMeds.join(', '));
+          drugInteractionResult = await drugInteractionService.checkDrugInteractions(allMeds);
+          if (drugInteractionResult) {
+            console.log('[ANALYZE] Drug interaction result:', drugInteractionResult.hasInteractions ? 'interactions found' : 'no interactions');
+          }
+        } else if (allMeds.length === 1) {
+          console.log('[ANALYZE] Only 1 medicine found:', allMeds[0], '- skipping interaction check');
+        } else {
+          console.log('[ANALYZE] No medicines found in prescription - skipping interaction check');
+        }
+      } catch (interactionError) {
+        console.warn('[ANALYZE] Drug interaction check failed:', interactionError.message);
+      }
     }
 
     const combinedRiskLevel = determineCombinedRisk(triageResult, aiResult, symptoms);
