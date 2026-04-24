@@ -3,7 +3,7 @@ const https = require('https');
 const GEMINI_API_VERSION = 'v1beta';
 const DEFAULT_MODEL = 'gemini-2.5-flash';
 
-function buildPrompt(symptoms, userContext, prescriptionText, fileDescriptions) {
+function buildPrompt(symptoms, userContext, prescriptionText, fileDescriptions, knowledgeContext) {
   userContext = userContext || {};
   
   let prompt = `You are ArogyaAI, an advanced medical AI assistant. Your task is to analyze patient data and provide clinical assessment.
@@ -57,6 +57,12 @@ ${fileDescriptions.map((desc, i) => `File ${i + 1}: ${desc}`).join('\n')}
 `;
   }
 
+  if (knowledgeContext && knowledgeContext.trim().length > 0) {
+    prompt += `
+${knowledgeContext}
+`;
+  }
+
   prompt += `
 
 ANALYSIS TASK: 
@@ -69,8 +75,9 @@ IMPORTANT:
 - Do NOT include any text before or after the JSON
 - If you include markdown or text, the response will fail
 - PRESCRIPTION DATA IS KEY: Amlodipine/Atorvastatin = Hypertension/Heart issues
+- Include knowledge from KNOWLEDGE BASE in your analysis
 - List prescription-related conditions FIRST in possible_conditions
-- Include detected_medicines: medicines found in prescriptions (e.g., Metformin, Ecosprin, Atorvastatin, Metoprolol, Sorbitrate)`;
+- Include detected_medicines: medicines found in prescriptions`;
 
   return prompt;
 }
@@ -406,7 +413,7 @@ async function analyzeWithGemini(prompt, imageData, attempt) {
   }
 }
 
-async function analyzeSymptoms(symptoms, userContext, imageBase64, uploadedFiles, prescriptionText) {
+async function analyzeSymptoms(symptoms, userContext, imageBase64, uploadedFiles, prescriptionText, knowledgeContext) {
   if (!symptoms || typeof symptoms !== 'string' || symptoms.trim().length < 3) {
     if (!imageBase64 && (!uploadedFiles || uploadedFiles.length === 0) && !prescriptionText) {
       return {
@@ -418,7 +425,8 @@ async function analyzeSymptoms(symptoms, userContext, imageBase64, uploadedFiles
         red_flags: [],
         confidence_score: 0.0,
         clinical_reasoning: 'Not enough information to provide a reliable assessment.',
-        suggested_tests: null
+        suggested_tests: null,
+        detected_medicines: []
       };
     }
   }
@@ -436,14 +444,16 @@ async function analyzeSymptoms(symptoms, userContext, imageBase64, uploadedFiles
       }
     });
   }
+ 
 
   const hasPrescription = prescriptionText && prescriptionText.trim().length > 0;
-  const prompt = buildPrompt(symptoms, userContext, prescriptionText, fileDescriptions);
+  const prompt = buildPrompt(symptoms, userContext, prescriptionText, fileDescriptions, knowledgeContext);
 
   console.log('[Gemini] Starting comprehensive analysis...');
   console.log('[Gemini] Text length:', symptoms.length);
   console.log('[Gemini] Has prescription text:', hasPrescription);
   console.log('[Gemini] Prescription text length:', hasPrescription ? prescriptionText.length : 0);
+  console.log('[Gemini] Has knowledge context:', !!knowledgeContext);
 
   return await analyzeWithGemini(prompt, imageBase64, 1);
 }

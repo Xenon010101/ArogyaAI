@@ -6,6 +6,7 @@ const { processUploadedFiles } = require('../services/fileService');
 const hfService = require('../services/huggingfaceService');
 const clinicalLogic = require('../services/clinicalLogic');
 const drugInteractionService = require('../services/drugInteractionService');
+const ragService = require('../services/ragService');
 
 function determineCombinedRisk(triageResult, aiResult, symptoms) {
   if (!triageResult || !aiResult) return 'moderate';
@@ -200,6 +201,24 @@ exports.analyze = async function(req, res, next) {
     const symptomsAnalysis = clinicalLogic.analyzeSymptoms(combinedInputText || symptoms || '', triageResult, extractedPrescriptionText);
     console.log('[ANALYZE] Symptoms analysis:', JSON.stringify(symptomsAnalysis));
 
+    // RAG: Retrieve relevant medical knowledge
+    let knowledgeContext = '';
+    let retrievedKnowledge = [];
+    try {
+      console.log('[ANALYZE] Retrieving relevant knowledge...');
+      retrievedKnowledge = await ragService.retrieveRelevantKnowledge(
+        symptoms,
+        symptomsAnalysis.conditions,
+        extractedPrescriptionText
+      );
+      if (retrievedKnowledge.length > 0) {
+        knowledgeContext = ragService.buildKnowledgeContext(retrievedKnowledge);
+        console.log('[ANALYZE] Retrieved', retrievedKnowledge.length, 'knowledge chunks');
+      }
+    } catch (ragError) {
+      console.warn('[ANALYZE] RAG retrieval failed:', ragError.message);
+    }
+
     // Call AI
     let aiResult;
     let imageAnalysisFailed = false;
@@ -209,7 +228,7 @@ exports.analyze = async function(req, res, next) {
     console.log('[ANALYZE] - Image prepared:', !!imageBase64);
     
     try {
-      aiResult = await aiService.analyzeSymptoms(combinedInputText, userContext, imageBase64, allFiles, extractedPrescriptionText);
+      aiResult = await aiService.analyzeSymptoms(combinedInputText, userContext, imageBase64, allFiles, extractedPrescriptionText, knowledgeContext);
       console.log('[ANALYZE] AI result received:', aiResult.risk_level);
       if (aiResult.error === 'quota_exceeded') {
         console.warn('[ANALYZE] AI quota exceeded - using clinical logic fallback');
