@@ -126,6 +126,27 @@ function parseJson(text) {
   try {
     return JSON.parse(cleaned);
   } catch (e) {
+    // Handle truncated/incomplete JSON - try to extract what's valid
+    const truncatedMatch = cleaned.match(/^\{[\s\S]*risk_level["\s:]+"([^"]+)"/i);
+    if (truncatedMatch) {
+      const riskLevel = truncatedMatch[1];
+      if (['critical', 'high', 'moderate', 'low'].includes(riskLevel.toLowerCase())) {
+        console.log('[Parse] Extracted risk_level from truncated response:', riskLevel);
+        return {
+          risk_level: riskLevel.toLowerCase(),
+          risk_explanation: 'Analysis completed from partial AI response.',
+          summary: 'Analysis completed based on available data.',
+          possible_conditions: [],
+          recommendations: ['Consult a healthcare professional'],
+          red_flags: [],
+          confidence_score: 0.5,
+          clinical_reasoning: 'Analysis completed with partial AI response.',
+          suggested_tests: null,
+          detected_medicines: []
+        };
+      }
+    }
+    
     // Try to find JSON object in the text
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
@@ -168,7 +189,8 @@ function extractPartialInfo(text) {
     red_flags: [],
     confidence_score: 0.5,
     clinical_reasoning: 'Analysis completed with limited AI response.',
-    suggested_tests: null
+    suggested_tests: null,
+    detected_medicines: []
   };
   
   // Extract conditions
@@ -186,14 +208,26 @@ function extractPartialInfo(text) {
   // Extract risk level
   const riskMatch = text.match(/risk_level["\s:]+"?([^}",\n]+)"?/i);
   if (riskMatch) {
-    const risk = riskMatch[1].trim().toLowerCase();
+    const risk = riskMatch[1].trim().toLowerCase().replace(/"/g, '');
     if (['critical', 'high', 'moderate', 'low'].includes(risk)) {
       result.risk_level = risk;
     }
   }
   
+  // Extract detected medicines
+  const medsMatch = text.match(/detected_medicines["\s:]+(\[[\s\S]*?\])/i);
+  if (medsMatch) {
+    try {
+      const medsStr = medsMatch[1];
+      const medicines = medsStr.match(/"([^"]+)"/g)?.map(m => m.replace(/"/g, '')) || [];
+      if (medicines.length > 0) {
+        result.detected_medicines = medicines.slice(0, 10);
+      }
+    } catch (e) {}
+  }
+  
   // If we couldn't extract anything useful, return null
-  if (result.possible_conditions.length === 0) {
+  if (result.possible_conditions.length === 0 && result.risk_level === 'moderate') {
     return null;
   }
   
